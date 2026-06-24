@@ -10,3 +10,5 @@ coverage
 .env*.local
 *.log
 prisma/migrations/dev.db
+
+.vercel
