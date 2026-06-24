@@ -1,22 +1,103 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import type { MusicRankingTrack } from "@/lib/musicRankings";
+
+type RankingsApiResponse = {
+  data: MusicRankingTrack[];
+  updatedAt: string;
+};
 
 type MusicRankingsSectionProps = {
   tracks: MusicRankingTrack[];
+  updatedAt?: string;
+  limit?: number;
+  pollMs?: number;
 };
 
-export function MusicRankingsSection({ tracks }: MusicRankingsSectionProps) {
+function formatClock(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "đang cập nhật";
+  }
+
+  return date.toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    day: "2-digit",
+    month: "2-digit"
+  });
+}
+
+export function MusicRankingsSection({
+  tracks,
+  updatedAt = new Date().toISOString(),
+  limit,
+  pollMs = 60_000
+}: MusicRankingsSectionProps) {
+  const [items, setItems] = useState(tracks);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(updatedAt);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const requestLimit = useMemo(() => limit ?? Math.max(tracks.length, 8), [limit, tracks.length]);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+
+    async function refresh() {
+      setIsRefreshing(true);
+      try {
+        const response = await fetch(`/api/music-rankings?limit=${requestLimit}`, {
+          cache: "no-store",
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as RankingsApiResponse;
+        if (!active) {
+          return;
+        }
+
+        setItems(payload.data);
+        setLastUpdatedAt(payload.updatedAt);
+      } catch {
+        // Keep the previous ranking snapshot if a live refresh fails.
+      } finally {
+        if (active) {
+          setIsRefreshing(false);
+        }
+      }
+    }
+
+    const timer = window.setInterval(refresh, pollMs);
+
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [pollMs, requestLimit]);
+
   return (
     <div className="panel" id="rankings">
       <div className="panelHeader">
         <h2>Bảng xếp hạng bài hát JISOO</h2>
         <span>Deezer + Apple Music</span>
       </div>
+      <p className="updateMeta">
+        <span className={isRefreshing ? "liveDot refreshing" : "liveDot"} />
+        Cập nhật lúc {formatClock(lastUpdatedAt)}
+      </p>
       <p className="sectionHint">
         Xếp hạng theo chỉ số popularity/rank live từ Deezer. Bấm vào bài hát hoặc nút nền tảng để mở ở tab mới.
       </p>
 
       <div className="musicRankList">
-        {tracks.map((track) => (
+        {items.map((track) => (
           <article className="musicRankCard" key={track.id}>
             <a className="musicRankMain" href={track.primaryUrl} target="_blank" rel="noreferrer">
               <span className="rank">#{track.rank}</span>
@@ -44,7 +125,7 @@ export function MusicRankingsSection({ tracks }: MusicRankingsSectionProps) {
             </div>
           </article>
         ))}
-        {tracks.length === 0 ? (
+        {items.length === 0 ? (
           <p className="empty">Chưa lấy được dữ liệu xếp hạng nhạc JISOO. Hãy thử refresh lại sau.</p>
         ) : null}
       </div>

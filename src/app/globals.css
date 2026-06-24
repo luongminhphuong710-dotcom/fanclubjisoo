@@ -256,6 +256,28 @@ h1 {
   line-height: 1.5;
 }
 
+.updateMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(242, 99, 152, 0.16);
+}
+
+.liveDot.refreshing {
+  background: var(--wine);
+}
+
 .musicRankCard {
   display: grid;
   gap: 10px;
@@ -546,6 +568,12 @@ h1 {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.4;
+}
+
+.newsItem time {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 @media (max-width: 860px) {

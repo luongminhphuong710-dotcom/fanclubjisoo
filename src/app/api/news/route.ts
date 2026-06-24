@@ -5,6 +5,7 @@ import { json } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -52,25 +53,38 @@ export async function GET(request: Request) {
     if (data.length === 0) {
       const liveNews = await getLiveHashtagNews({ hashtag, limit: take });
 
-      return json({
+      return json(
+        {
         data: liveNews,
         databaseReady: true,
         mode: "live-rss-fallback",
-        hashtag: `#${hashtag}`
-      });
+        hashtag: `#${hashtag}`,
+        updatedAt: new Date().toISOString()
+        },
+        { headers: { "cache-control": "no-store, max-age=0" } }
+      );
     }
 
-    return json({
+    return json(
+      {
       data,
-      databaseReady: true
-    });
+      databaseReady: true,
+      mode: "database",
+      updatedAt: new Date().toISOString()
+      },
+      { headers: { "cache-control": "no-store, max-age=0" } }
+    );
   } catch {
     const liveNews = await getLiveHashtagNews({ hashtag, limit: take });
-    return json({
+    return json(
+      {
       data: liveNews,
       databaseReady: false,
       mode: "live-rss-fallback",
-      hashtag: `#${hashtag}`
-    });
+      hashtag: `#${hashtag}`,
+      updatedAt: new Date().toISOString()
+      },
+      { headers: { "cache-control": "no-store, max-age=0" } }
+    );
   }
 }

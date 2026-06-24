@@ -7,6 +7,7 @@ export type NewsCardData = {
   title: string;
   url: string;
   imageUrl: string | null;
+  publishedAt: string | null;
   source: {
     name: string;
   } | null;
@@ -16,7 +17,27 @@ export type NewsData = {
   news: NewsCardData[];
   databaseReady: boolean;
   newsMode: "database" | "live-rss-fallback";
+  updatedAt: string;
 };
+
+function serializeNewsArticle(article: {
+  id: string;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  publishedAt?: Date | string | null;
+  source: { name: string } | null;
+}): NewsCardData {
+  return {
+    id: article.id,
+    title: article.title,
+    url: article.url,
+    imageUrl: article.imageUrl,
+    publishedAt:
+      article.publishedAt instanceof Date ? article.publishedAt.toISOString() : article.publishedAt ?? null,
+    source: article.source ? { name: article.source.name } : null
+  };
+}
 
 export async function getNewsData(limit = 6): Promise<NewsData> {
   try {
@@ -29,23 +50,19 @@ export async function getNewsData(limit = 6): Promise<NewsData> {
 
     if (dbNews.length > 0) {
       return {
-        news: dbNews.map((article) => ({
-          id: article.id,
-          title: article.title,
-          url: article.url,
-          imageUrl: article.imageUrl,
-          source: article.source ? { name: article.source.name } : null
-        })),
+        news: dbNews.map(serializeNewsArticle),
         databaseReady: true,
-        newsMode: "database"
+        newsMode: "database",
+        updatedAt: new Date().toISOString()
       };
     }
 
     const liveNews = await getLiveHashtagNews({ hashtag: DEFAULT_HASHTAG, limit });
     return {
-      news: liveNews,
+      news: liveNews.map(serializeNewsArticle),
       databaseReady: true,
-      newsMode: "live-rss-fallback"
+      newsMode: "live-rss-fallback",
+      updatedAt: new Date().toISOString()
     };
   } catch {
     // Preview mode still works without PostgreSQL.
@@ -53,9 +70,10 @@ export async function getNewsData(limit = 6): Promise<NewsData> {
 
   const liveNews = await getLiveHashtagNews({ hashtag: DEFAULT_HASHTAG, limit });
   return {
-    news: liveNews,
+    news: liveNews.map(serializeNewsArticle),
     databaseReady: false,
-    newsMode: "live-rss-fallback"
+    newsMode: "live-rss-fallback",
+    updatedAt: new Date().toISOString()
   };
 }
 
@@ -67,6 +85,7 @@ export async function getHomeData() {
 
   return {
     musicRankings,
+    rankingsUpdatedAt: new Date().toISOString(),
     ...newsData
   };
 }

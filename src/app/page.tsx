@@ -10,7 +10,7 @@ import { getHomeData } from "@/lib/pageData";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const { musicRankings, news, databaseReady, newsMode } = await getHomeData();
+  const { musicRankings, rankingsUpdatedAt, news, databaseReady, newsMode, updatedAt } = await getHomeData();
 
   return (
     <main className="shell">
@@ -18,8 +18,8 @@ export default async function HomePage() {
       <HeroBanner />
 
       <section className="grid">
-        <MusicRankingsSection tracks={musicRankings} />
-        <NewsGallerySection databaseReady={databaseReady} news={news} newsMode={newsMode} />
+        <MusicRankingsSection tracks={musicRankings} updatedAt={rankingsUpdatedAt} />
+        <NewsGallerySection databaseReady={databaseReady} news={news} newsMode={newsMode} updatedAt={updatedAt} />
       </section>
 
       <FanClubSection />

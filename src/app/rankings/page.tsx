@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RankingsPage() {
   const musicRankings = await getMusicRankings({ limit: 12 }).catch(() => []);
+  const updatedAt = new Date().toISOString();
 
   return (
     <main className="shell">
@@ -18,7 +19,7 @@ export default async function RankingsPage() {
         text="Theo dõi các ca khúc JISOO trên Deezer, Apple Music, Spotify và YouTube Music."
       />
       <section className="singleColumn">
-        <MusicRankingsSection tracks={musicRankings} />
+        <MusicRankingsSection limit={12} tracks={musicRankings} updatedAt={updatedAt} />
       </section>
     </main>
   );
