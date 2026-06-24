@@ -2,6 +2,8 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import type { BlogPostData } from "@/lib/blog";
+import type { BlogCommentData } from "@/lib/blogComments";
+import type { PublicMember } from "@/lib/members";
 
 type MessageState = {
   type: "idle" | "success" | "error";
@@ -58,13 +60,53 @@ function resizeImage(file: File): Promise<string> {
   });
 }
 
+function dateLabel(value: string | null | undefined) {
+  if (!value) {
+    return "Chưa xuất bản";
+  }
+
+  return new Date(value).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function postPayload(post: BlogPostData, published: boolean) {
+  return {
+    title: post.title,
+    excerpt: post.excerpt ?? "",
+    body: post.body,
+    imageUrl: post.imageUrl ?? "",
+    tags: post.tags,
+    published
+  };
+}
+
 export function AdminBlogEditor() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [posts, setPosts] = useState<BlogPostData[]>([]);
+  const [members, setMembers] = useState<PublicMember[]>([]);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, BlogCommentData[]>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedPostIds, setExpandedPostIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [message, setMessage] = useState<MessageState>({ type: "idle", text: "" });
   const [loading, setLoading] = useState(false);
+
+  async function loadMembers() {
+    const response = await fetch("/api/admin/members", { cache: "no-store" });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const result = (await response.json()) as { data: PublicMember[] };
+    setMembers(result.data);
+  }
 
   async function loadPosts() {
     const response = await fetch("/api/admin/blog", { cache: "no-store" });
@@ -82,6 +124,18 @@ export function AdminBlogEditor() {
     const result = (await response.json()) as { data: BlogPostData[] };
     setPosts(result.data);
     setLoggedIn(true);
+    void loadMembers();
+  }
+
+  async function loadComments(postId: string) {
+    const response = await fetch(`/api/admin/blog/${postId}/comments`, { cache: "no-store" });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const result = (await response.json()) as { data: BlogCommentData[] };
+    setCommentsByPost((current) => ({ ...current, [postId]: result.data }));
   }
 
   useEffect(() => {
@@ -201,10 +255,90 @@ export function AdminBlogEditor() {
     await loadPosts();
   }
 
+  async function handleTogglePublish(post: BlogPostData) {
+    const response = await fetch(`/api/admin/blog/${post.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(postPayload(post, !post.published))
+    });
+
+    const result = (await response.json()) as { message?: string };
+
+    if (!response.ok) {
+      setMessage({ type: "error", text: result.message ?? "Chưa đổi được trạng thái bài." });
+      return;
+    }
+
+    setMessage({ type: "success", text: post.published ? "Đã ẩn bài khỏi blog công khai." : "Đã duyệt bài." });
+    await loadPosts();
+  }
+
+  async function handleDeletePost(post: BlogPostData) {
+    const confirmed = window.confirm(`Xóa bài "${post.title}"? Hành động này không thể hoàn tác.`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    const response = await fetch(`/api/admin/blog/${post.id}`, { method: "DELETE" });
+    const result = (await response.json()) as { message?: string };
+
+    if (!response.ok) {
+      setMessage({ type: "error", text: result.message ?? "Chưa xóa được bài viết." });
+      return;
+    }
+
+    setMessage({ type: "success", text: result.message ?? "Đã xóa bài viết." });
+    await loadPosts();
+  }
+
+  async function toggleComments(postId: string) {
+    const expanded = expandedPostIds.includes(postId);
+
+    setExpandedPostIds((current) =>
+      expanded ? current.filter((id) => id !== postId) : [...new Set([...current, postId])]
+    );
+
+    if (!expanded && !commentsByPost[postId]) {
+      await loadComments(postId);
+    }
+  }
+
+  async function handleCommentSubmit(event: FormEvent<HTMLFormElement>, postId: string) {
+    event.preventDefault();
+
+    const body = commentDrafts[postId]?.trim() ?? "";
+
+    if (!body) {
+      setMessage({ type: "error", text: "Nhập nội dung bình luận trước khi gửi." });
+      return;
+    }
+
+    const response = await fetch(`/api/admin/blog/${postId}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body })
+    });
+
+    const result = (await response.json()) as { message?: string };
+
+    if (!response.ok) {
+      setMessage({ type: "error", text: result.message ?? "Chưa gửi được bình luận." });
+      return;
+    }
+
+    setCommentDrafts((current) => ({ ...current, [postId]: "" }));
+    setMessage({ type: "success", text: result.message ?? "Đã thêm bình luận admin." });
+    await loadComments(postId);
+  }
+
   async function handleLogout() {
     await fetch("/api/admin/logout", { method: "POST" });
     setLoggedIn(false);
     setPosts([]);
+    setMembers([]);
+    setCommentsByPost({});
+    setExpandedPostIds([]);
     setEditingId(null);
     setForm(emptyForm);
     setMessage({ type: "idle", text: "" });
@@ -215,10 +349,10 @@ export function AdminBlogEditor() {
       <section className="contentSection adminSection">
         <div className="sectionIntro">
           <p className="eyebrowDark">Admin</p>
-          <h2>Đăng nhập để cập nhật Blog JISOO</h2>
-          <p>Tài khoản admin dùng để đăng bài mới và sửa nội dung blog trên website.</p>
+          <h2>Đăng nhập để vào trang quản trị</h2>
+          <p>Dashboard admin cho phép đăng blog, duyệt bài thành viên, xóa bài, bình luận và xem danh sách thành viên.</p>
         </div>
-        <form className="adminForm" onSubmit={handleLogin}>
+        <form className="adminForm loginForm" onSubmit={handleLogin}>
           <label>
             Email admin
             <input name="email" type="email" placeholder="admin@jisoo.vn" required />
@@ -236,124 +370,237 @@ export function AdminBlogEditor() {
     );
   }
 
+  const pendingPosts = posts.filter((post) => !post.published).length;
+
   return (
     <section className="contentSection adminSection">
       <div className="panelHeader blogHeader">
         <div>
-          <p className="eyebrowDark">Admin Blog</p>
-          <h2>{editingId ? "Sửa bài viết" : "Đăng bài mới về JISOO"}</h2>
+          <p className="eyebrowDark">Admin Dashboard</p>
+          <h2>Quản trị Blog JISOO</h2>
         </div>
         <button className="ghostButton" type="button" onClick={handleLogout}>
           Đăng xuất
         </button>
       </div>
 
-      <form className="adminForm blogEditorForm" onSubmit={handleSave}>
-        <label>
-          Tiêu đề bài viết
-          <input
-            value={form.title}
-            onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-            required
-            minLength={4}
-            placeholder="Ví dụ: JISOO và khoảnh khắc đáng nhớ tuần này"
-          />
-        </label>
-        <label>
-          Mô tả ngắn
-          <input
-            value={form.excerpt}
-            onChange={(event) => setForm((current) => ({ ...current, excerpt: event.target.value }))}
-            placeholder="Tóm tắt ngắn hiển thị ngoài blog"
-          />
-        </label>
-        <label>
-          Hashtag
-          <input
-            value={form.tags}
-            onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
-            placeholder="JISOO, BLACKPINK"
-          />
-        </label>
-        <label>
-          Hoặc dán URL ảnh
-          <input
-            value={form.imageUrl.startsWith("data:image/") ? "" : form.imageUrl}
-            onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
-            placeholder="/images/jisoo-vietnam-fanclub-cover.png hoặc URL ảnh"
-          />
-        </label>
-        <label className="fullRow uploadLabel">
-          Tải ảnh trực tiếp
-          <input accept="image/*" type="file" onChange={handleImageUpload} />
-        </label>
-        {form.imageUrl ? (
-          <div className="imagePreview fullRow">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={form.imageUrl} alt="" />
-            <button
-              className="ghostButton"
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
-            >
-              Xóa ảnh
-            </button>
-          </div>
-        ) : null}
-        <label className="fullRow">
-          Nội dung bài viết
-          <textarea
-            value={form.body}
-            onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))}
-            required
-            minLength={20}
-            rows={9}
-            placeholder="Nhập nội dung bài viết về JISOO..."
-          />
-        </label>
-        <label className="checkRow">
-          <input
-            type="checkbox"
-            checked={form.published}
-            onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))}
-          />
-          Xuất bản bài viết
-        </label>
-        <div className="adminActions">
-          <button type="submit" disabled={loading}>
-            {loading ? "Đang lưu..." : editingId ? "Cập nhật bài viết" : "Đăng bài"}
-          </button>
-          {editingId ? (
-            <button
-              className="ghostButton"
-              type="button"
-              onClick={() => {
-                setEditingId(null);
-                setForm(emptyForm);
-              }}
-            >
-              Hủy sửa
-            </button>
-          ) : null}
+      <div className="adminSummaryGrid">
+        <div>
+          <span>{posts.length}</span>
+          <strong>Tổng bài</strong>
         </div>
-      </form>
+        <div>
+          <span>{pendingPosts}</span>
+          <strong>Chờ duyệt</strong>
+        </div>
+        <div>
+          <span>{members.length}</span>
+          <strong>Thành viên</strong>
+        </div>
+      </div>
+
+      <div className="adminManagementGrid">
+        <div className="adminPanel">
+          <div className="panelHeader blogHeader">
+            <div>
+              <p className="eyebrowDark">Soạn bài</p>
+              <h2>{editingId ? "Sửa bài viết" : "Đăng bài mới"}</h2>
+            </div>
+          </div>
+
+          <form className="adminForm blogEditorForm" onSubmit={handleSave}>
+            <label>
+              Tiêu đề bài viết
+              <input
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                required
+                minLength={4}
+                placeholder="Ví dụ: JISOO và khoảnh khắc đáng nhớ tuần này"
+              />
+            </label>
+            <label>
+              Mô tả ngắn
+              <input
+                value={form.excerpt}
+                onChange={(event) => setForm((current) => ({ ...current, excerpt: event.target.value }))}
+                placeholder="Tóm tắt ngắn hiển thị ngoài blog"
+              />
+            </label>
+            <label>
+              Hashtag
+              <input
+                value={form.tags}
+                onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
+                placeholder="JISOO, BLACKPINK"
+              />
+            </label>
+            <label>
+              Hoặc dán URL ảnh
+              <input
+                value={form.imageUrl.startsWith("data:image/") ? "" : form.imageUrl}
+                onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
+                placeholder="/images/jisoo-vietnam-fanclub-cover.png hoặc URL ảnh"
+              />
+            </label>
+            <label className="fullRow uploadLabel">
+              Tải ảnh trực tiếp
+              <input accept="image/*" type="file" onChange={handleImageUpload} />
+            </label>
+            {form.imageUrl ? (
+              <div className="imagePreview fullRow">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={form.imageUrl} alt="" />
+                <button
+                  className="ghostButton"
+                  type="button"
+                  onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
+                >
+                  Xóa ảnh
+                </button>
+              </div>
+            ) : null}
+            <label className="fullRow">
+              Nội dung bài viết
+              <textarea
+                value={form.body}
+                onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))}
+                required
+                minLength={20}
+                rows={10}
+                placeholder="Nhập nội dung bài viết về JISOO..."
+              />
+            </label>
+            <label className="checkRow">
+              <input
+                type="checkbox"
+                checked={form.published}
+                onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))}
+              />
+              Xuất bản ngay
+            </label>
+            <div className="adminActions">
+              <button type="submit" disabled={loading}>
+                {loading ? "Đang lưu..." : editingId ? "Cập nhật bài viết" : "Đăng bài"}
+              </button>
+              {editingId ? (
+                <button
+                  className="ghostButton"
+                  type="button"
+                  onClick={() => {
+                    setEditingId(null);
+                    setForm(emptyForm);
+                  }}
+                >
+                  Hủy sửa
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </div>
+
+        <div className="adminPanel">
+          <div className="panelHeader blogHeader">
+            <div>
+              <p className="eyebrowDark">Thành viên</p>
+              <h2>Danh sách thành viên</h2>
+            </div>
+          </div>
+          <div className="memberList">
+            {members.map((member) => (
+              <article key={member.id}>
+                <strong>{member.displayName}</strong>
+                <span>{member.email}</span>
+                <p>
+                  {member.fanName || "Chưa có biệt danh"} · {member.favoriteSong || "Chưa chọn bài yêu thích"}
+                </p>
+              </article>
+            ))}
+            {members.length === 0 ? <p className="empty">Chưa có thành viên đăng ký.</p> : null}
+          </div>
+        </div>
+      </div>
 
       {message.text ? <p className={`formMessage ${message.type}`}>{message.text}</p> : null}
 
-      <div className="adminPostList">
-        {posts.map((post) => (
-          <article key={post.id}>
-            <div>
-              <h3>{post.title}</h3>
-              <p>
-                {post.published ? "Đã xuất bản" : "Bản nháp"} · {post.authorName}
-              </p>
-            </div>
-            <button className="ghostButton" type="button" onClick={() => editPost(post)}>
-              Sửa
-            </button>
-          </article>
-        ))}
+      <div className="adminPanel">
+        <div className="panelHeader blogHeader">
+          <div>
+            <p className="eyebrowDark">Kiểm duyệt</p>
+            <h2>Bài blog và bài thành viên gửi</h2>
+          </div>
+        </div>
+
+        <div className="adminPostList">
+          {posts.map((post) => {
+            const expanded = expandedPostIds.includes(post.id);
+            const comments = commentsByPost[post.id] ?? [];
+
+            return (
+              <article className="adminPostItem" key={post.id}>
+                <div className="adminPostMain">
+                  {post.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={post.imageUrl} alt="" />
+                  ) : (
+                    <div className="adminPostThumbFallback" />
+                  )}
+                  <div>
+                    <span className={post.published ? "statusBadge approved" : "statusBadge pending"}>
+                      {post.published ? "Đã duyệt" : "Chờ duyệt"}
+                    </span>
+                    <h3>{post.title}</h3>
+                    <p>
+                      {post.authorName}
+                      {post.authorEmail ? ` · ${post.authorEmail}` : ""} · {dateLabel(post.publishedAt ?? post.createdAt)}
+                    </p>
+                  </div>
+                </div>
+                <div className="adminPostActions">
+                  <button className="ghostButton" type="button" onClick={() => editPost(post)}>
+                    Sửa
+                  </button>
+                  <button className="ghostButton" type="button" onClick={() => handleTogglePublish(post)}>
+                    {post.published ? "Ẩn" : "Duyệt"}
+                  </button>
+                  <button className="ghostButton dangerButton" type="button" onClick={() => handleDeletePost(post)}>
+                    Xóa
+                  </button>
+                  <button className="ghostButton" type="button" onClick={() => toggleComments(post.id)}>
+                    Bình luận
+                  </button>
+                </div>
+
+                {expanded ? (
+                  <div className="adminCommentPanel">
+                    <div className="adminCommentList">
+                      {comments.map((comment) => (
+                        <div key={comment.id}>
+                          <strong>{comment.authorName}</strong>
+                          <span>{dateLabel(comment.createdAt)}</span>
+                          <p>{comment.body}</p>
+                        </div>
+                      ))}
+                      {comments.length === 0 ? <p className="empty">Chưa có bình luận.</p> : null}
+                    </div>
+                    <form onSubmit={(event) => handleCommentSubmit(event, post.id)}>
+                      <textarea
+                        value={commentDrafts[post.id] ?? ""}
+                        onChange={(event) =>
+                          setCommentDrafts((current) => ({ ...current, [post.id]: event.target.value }))
+                        }
+                        placeholder="Nhập bình luận admin cho bài này..."
+                        rows={3}
+                      />
+                      <button type="submit">Gửi bình luận</button>
+                    </form>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+          {posts.length === 0 ? <p className="empty">Chưa có bài blog nào.</p> : null}
+        </div>
       </div>
     </section>
   );

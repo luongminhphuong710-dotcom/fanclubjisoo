@@ -984,6 +984,248 @@ h1 {
   font-size: 0.82rem;
 }
 
+.adminSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.adminSummaryGrid div,
+.adminPanel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.adminSummaryGrid div {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.adminSummaryGrid span {
+  color: var(--accent);
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.adminSummaryGrid strong {
+  color: var(--wine);
+  font-size: 0.86rem;
+}
+
+.adminManagementGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.adminPanel {
+  padding: 16px;
+}
+
+.memberList {
+  display: grid;
+  gap: 10px;
+  max-height: 620px;
+  overflow: auto;
+}
+
+.memberList article {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.memberList strong {
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.memberList span,
+.memberList p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.adminPostList .adminPostItem {
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 12px;
+  background: #fff;
+}
+
+.adminPostMain {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.adminPostMain img,
+.adminPostThumbFallback {
+  width: 86px;
+  aspect-ratio: 16 / 10;
+  border-radius: 6px;
+  object-fit: cover;
+  background: linear-gradient(135deg, var(--accent-3), var(--accent));
+}
+
+.adminPostMain h3 {
+  margin-top: 6px;
+}
+
+.adminPostActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.statusBadge.approved {
+  background: #fff;
+  color: var(--accent);
+  border: 1px solid var(--accent-3);
+}
+
+.statusBadge.pending {
+  background: var(--wine);
+  color: #fff;
+}
+
+.dangerButton {
+  border-color: rgba(115, 36, 36, 0.34);
+  color: var(--wine);
+}
+
+.adminCommentPanel {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.adminCommentList {
+  display: grid;
+  gap: 8px;
+}
+
+.adminCommentList div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel-soft);
+}
+
+.adminCommentList strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.adminCommentList span {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.adminCommentList p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.adminCommentPanel form {
+  display: grid;
+  gap: 8px;
+}
+
+.adminCommentPanel textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.adminCommentPanel button {
+  width: fit-content;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 14px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.blogComments {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 22px;
+}
+
+.blogComments h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.blogComments article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--panel-soft);
+}
+
+.blogComments article p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.blogComments article strong {
+  color: var(--ink);
+}
+
+.blogComments article span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.blogComments article div {
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
 .newsItem {
   display: grid;
   gap: 10px;
@@ -1079,7 +1321,9 @@ h1 {
   .clubSection,
   .signupForm,
   .adminForm,
-  .aboutGrid {
+  .aboutGrid,
+  .adminSummaryGrid,
+  .adminManagementGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1110,6 +1354,15 @@ h1 {
 
   .platformLinks {
     padding-left: 0;
+  }
+
+  .adminPostMain {
+    grid-template-columns: 1fr;
+  }
+
+  .adminPostMain img,
+  .adminPostThumbFallback {
+    width: 100%;
   }
 }
 

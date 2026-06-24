@@ -24,7 +24,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
         title="Blog JISOO Vietnam Fanclub"
         text="Đọc các bài viết mới về JISOO, lọc theo hashtag và mở từng bài để xem đầy đủ nội dung."
       />
-      <BlogSection posts={posts} selectedTag={tag} showFilters tags={tags} />
+      <BlogSection posts={posts} selectedTag={tag} showFilters showSubmitLink tags={tags} />
     </main>
   );
 }

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     return json({ message: "Bạn cần đăng nhập admin." }, { status: 401 });
   }
 
-  const posts = await listBlogPosts({ includeDrafts: true, limit: 50 });
+  const posts = await listBlogPosts({ includeDrafts: true, limit: 100 });
   return json({ data: posts });
 }
 
@@ -35,6 +35,6 @@ export async function POST(request: Request) {
     return json({ message: "Nội dung bài viết chưa hợp lệ." }, { status: 400 });
   }
 
-  const post = await createBlogPost(parsed.data);
+  const post = await createBlogPost({ ...parsed.data, authorName: "Mia", authorEmail: "admin@jisoo.vn" });
   return json({ message: "Đã đăng bài blog.", post }, { status: 201 });
 }

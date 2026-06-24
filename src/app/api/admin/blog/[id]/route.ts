@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isAdminRequest } from "@/lib/adminAuth";
-import { updateBlogPost } from "@/lib/blog";
+import { deleteBlogPost, updateBlogPost } from "@/lib/blog";
 import { json } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -32,5 +32,25 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   const post = await updateBlogPost(id, parsed.data);
+
+  if (!post) {
+    return json({ message: "Không tìm thấy bài blog." }, { status: 404 });
+  }
+
   return json({ message: "Đã cập nhật bài blog.", post });
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  if (!isAdminRequest(request)) {
+    return json({ message: "Bạn cần đăng nhập admin." }, { status: 401 });
+  }
+
+  const { id } = await context.params;
+  const deleted = await deleteBlogPost(id);
+
+  if (!deleted) {
+    return json({ message: "Không tìm thấy bài blog để xóa." }, { status: 404 });
+  }
+
+  return json({ message: "Đã xóa bài blog." });
 }

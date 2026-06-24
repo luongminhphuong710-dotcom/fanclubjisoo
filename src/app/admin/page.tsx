@@ -11,8 +11,8 @@ export default function AdminPage() {
       <HeroBanner
         compact
         eyebrow="Admin"
-        title="Quản trị Blog JISOO"
-        text="Đăng nhập tài khoản admin để đăng bài và cập nhật nội dung blog."
+        title="Quản trị JISOO Fanclub"
+        text="Đăng nhập tài khoản admin để đăng blog, duyệt bài thành viên, bình luận và xem danh sách thành viên."
       />
       <AdminBlogEditor />
     </main>

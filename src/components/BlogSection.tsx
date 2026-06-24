@@ -12,6 +12,7 @@ type BlogSectionProps = {
   selectedTag?: string | null;
   title?: string;
   showFilters?: boolean;
+  showSubmitLink?: boolean;
 };
 
 export function formatBlogDate(value: string | null) {
@@ -35,7 +36,8 @@ export function BlogSection({
   tags = [],
   selectedTag,
   title = "Blog JISOO Vietnam Fanclub",
-  showFilters = false
+  showFilters = false,
+  showSubmitLink = false
 }: BlogSectionProps) {
   const normalizedSelectedTag = selectedTag?.replace(/^#/, "").trim() || "";
 
@@ -46,6 +48,11 @@ export function BlogSection({
           <p className="eyebrowDark">Blog</p>
           <h2>{title}</h2>
         </div>
+        {showSubmitLink ? (
+          <Link className="adminLink" href="/blog/submit">
+            Gửi bài
+          </Link>
+        ) : null}
       </div>
       <p className="sectionHint">
         Các bài viết được cập nhật về JISOO, âm nhạc, phim ảnh, hình ảnh và hoạt động fanclub.

@@ -214,12 +214,26 @@ model BlogPost {
   tags        String[]  @default([])
   published   Boolean   @default(true)
   authorName  String    @default("Mia")
+  authorEmail String?
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  comments    BlogComment[]
 
   @@index([published, publishedAt])
   @@index([createdAt])
+}
+
+model BlogComment {
+  id         String   @id @default(cuid())
+  postId     String
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  post       BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
 }
 
 model User {

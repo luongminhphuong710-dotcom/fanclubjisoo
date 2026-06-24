@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { db } from "@/lib/db";
@@ -13,6 +14,7 @@ export type BlogPostData = {
   tags: string[];
   published: boolean;
   authorName: string;
+  authorEmail: string | null;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +28,8 @@ export type BlogPostInput = {
   imageUrl?: string;
   tags?: string[];
   published?: boolean;
+  authorName?: string;
+  authorEmail?: string | null;
 };
 
 export type ListBlogPostsOptions = {
@@ -39,13 +43,15 @@ const seedPosts: BlogPostData[] = [
     id: "seed-jisoo-fanclub-note",
     slug: "jisoo-fanclub-note",
     title: "Chào mừng đến với Blog JISOO Vietnam Fanclub",
-    excerpt: "Không gian cập nhật các bài viết, cảm nhận và hoạt động mới dành cho cộng đồng yêu JISOO.",
+    excerpt:
+      "Không gian cập nhật các bài viết, cảm nhận và hoạt động mới dành cho cộng đồng yêu JISOO.",
     body:
       "Blog là nơi admin chia sẻ các bài viết dài hơn về JISOO: lịch trình nổi bật, thành tích âm nhạc, vai diễn, hình ảnh đẹp và những khoảnh khắc đáng nhớ cùng BLINK Việt.",
     imageUrl: "/images/jisoo-vietnam-fanclub-cover.png",
     tags: ["JISOO", "Fanclub", "Mia"],
     published: true,
     authorName: "Mia",
+    authorEmail: "admin@jisoo.vn",
     publishedAt: "2026-06-24T00:00:00.000Z",
     createdAt: "2026-06-24T00:00:00.000Z",
     updatedAt: "2026-06-24T00:00:00.000Z"
@@ -87,6 +93,26 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return [...new Set((tags ?? []).map((tag) => tag.trim().replace(/^#/, "")).filter(Boolean))].slice(0, 8);
 }
 
+function normalizeFallbackPost(post: Partial<BlogPostData>): BlogPostData {
+  const now = new Date().toISOString();
+
+  return {
+    id: post.id ?? randomUUID(),
+    slug: post.slug ?? `${slugify(post.title ?? "bai-viet")}-${Date.now().toString(36)}`,
+    title: post.title ?? "Bài viết JISOO",
+    excerpt: post.excerpt ?? null,
+    body: post.body ?? "",
+    imageUrl: post.imageUrl ?? null,
+    tags: normalizeTags(post.tags),
+    published: post.published ?? true,
+    authorName: post.authorName ?? "Mia",
+    authorEmail: post.authorEmail ?? null,
+    publishedAt: post.publishedAt ?? (post.published === false ? null : now),
+    createdAt: post.createdAt ?? now,
+    updatedAt: post.updatedAt ?? now
+  };
+}
+
 function filterByTag(posts: BlogPostData[], tag: string | null | undefined): BlogPostData[] {
   const normalizedTag = normalizeTag(tag);
 
@@ -107,6 +133,7 @@ function serializeDbPost(post: {
   tags: string[];
   published: boolean;
   authorName: string;
+  authorEmail: string | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -122,8 +149,8 @@ function serializeDbPost(post: {
 async function readFallbackPosts(): Promise<BlogPostData[]> {
   try {
     const content = await readFile(dataPath(), "utf8");
-    const posts = JSON.parse(content) as BlogPostData[];
-    return posts.length > 0 ? posts : seedPosts;
+    const posts = JSON.parse(content) as Partial<BlogPostData>[];
+    return posts.length > 0 ? posts.map(normalizeFallbackPost) : seedPosts;
   } catch {
     return seedPosts;
   }
@@ -158,10 +185,8 @@ export async function listBlogPosts(options: ListBlogPostsOptions = {}) {
     return filterByTag(posts.map(serializeDbPost), options.tag).slice(0, limit);
   } catch {
     const posts = await readFallbackPosts();
-    return filterByTag(sortPosts(includeDrafts ? posts : posts.filter((post) => post.published)), options.tag).slice(
-      0,
-      limit
-    );
+    const visiblePosts = includeDrafts ? posts : posts.filter((post) => post.published);
+    return filterByTag(sortPosts(visiblePosts), options.tag).slice(0, limit);
   }
 }
 
@@ -217,7 +242,8 @@ export async function createBlogPost(input: BlogPostInput) {
     imageUrl: input.imageUrl?.trim() || null,
     tags: normalizeTags(input.tags),
     published,
-    authorName: "Mia",
+    authorName: input.authorName?.trim() || "Mia",
+    authorEmail: input.authorEmail?.trim() || null,
     publishedAt: published ? new Date(now) : null
   };
 
@@ -228,7 +254,7 @@ export async function createBlogPost(input: BlogPostInput) {
     const posts = await readFallbackPosts();
     const created: BlogPostData = {
       ...payload,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       publishedAt: toIso(payload.publishedAt),
       createdAt: now,
       updatedAt: now
@@ -242,36 +268,72 @@ export async function createBlogPost(input: BlogPostInput) {
 export async function updateBlogPost(id: string, input: BlogPostInput) {
   const now = new Date().toISOString();
   const published = input.published ?? true;
-  const data = {
-    title: input.title.trim(),
-    excerpt: input.excerpt?.trim() || null,
-    body: input.body.trim(),
-    imageUrl: input.imageUrl?.trim() || null,
-    tags: normalizeTags(input.tags),
-    published,
-    publishedAt: published ? new Date(now) : null
-  };
 
   try {
-    const updated = await db.blogPost.update({ where: { id }, data });
+    const existing = await db.blogPost.findUnique({ where: { id } });
+
+    if (!existing) {
+      return null;
+    }
+
+    const updated = await db.blogPost.update({
+      where: { id },
+      data: {
+        title: input.title.trim(),
+        excerpt: input.excerpt?.trim() || null,
+        body: input.body.trim(),
+        imageUrl: input.imageUrl?.trim() || null,
+        tags: normalizeTags(input.tags),
+        published,
+        authorName: input.authorName?.trim() || existing.authorName,
+        authorEmail: input.authorEmail === undefined ? existing.authorEmail : input.authorEmail?.trim() || null,
+        publishedAt: published ? existing.publishedAt ?? new Date(now) : null
+      }
+    });
+
     return serializeDbPost(updated);
   } catch {
     const posts = await readFallbackPosts();
     const index = posts.findIndex((post) => post.id === id);
 
     if (index < 0) {
-      return createBlogPost(input);
+      return null;
     }
 
+    const existing = posts[index];
     const updated: BlogPostData = {
-      ...posts[index],
-      ...data,
-      publishedAt: toIso(data.publishedAt),
+      ...existing,
+      title: input.title.trim(),
+      excerpt: input.excerpt?.trim() || null,
+      body: input.body.trim(),
+      imageUrl: input.imageUrl?.trim() || null,
+      tags: normalizeTags(input.tags),
+      published,
+      authorName: input.authorName?.trim() || existing.authorName,
+      authorEmail: input.authorEmail === undefined ? existing.authorEmail : input.authorEmail?.trim() || null,
+      publishedAt: published ? existing.publishedAt ?? now : null,
       updatedAt: now
     };
 
     posts[index] = updated;
     await writeFallbackPosts(posts);
     return updated;
+  }
+}
+
+export async function deleteBlogPost(id: string) {
+  try {
+    await db.blogPost.delete({ where: { id } });
+    return true;
+  } catch {
+    const posts = await readFallbackPosts();
+    const nextPosts = posts.filter((post) => post.id !== id);
+
+    if (nextPosts.length === posts.length) {
+      return false;
+    }
+
+    await writeFallbackPosts(nextPosts);
+    return true;
   }
 }

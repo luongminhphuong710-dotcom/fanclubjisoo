@@ -4,6 +4,7 @@ import { formatBlogDate } from "@/components/BlogSection";
 import { HeroBanner } from "@/components/HeroBanner";
 import { SiteToolbar } from "@/components/SiteToolbar";
 import { getBlogPostBySlug, listHotBlogPosts } from "@/lib/blog";
+import { listBlogComments } from "@/lib/blogComments";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     notFound();
   }
 
-  const hotPosts = await listHotBlogPosts({ excludeSlug: post.slug, limit: 5 });
+  const [hotPosts, comments] = await Promise.all([
+    listHotBlogPosts({ excludeSlug: post.slug, limit: 5 }),
+    listBlogComments(post.id)
+  ]);
 
   return (
     <main className="shell">
@@ -50,6 +54,20 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               ))}
             </div>
             <div className="blogFullText">{post.body}</div>
+          </div>
+
+          <div className="blogComments">
+            <h2>Bình luận</h2>
+            {comments.map((comment) => (
+              <article key={comment.id}>
+                <p>
+                  <strong>{comment.authorName}</strong>
+                  <span>{formatBlogDate(comment.createdAt)}</span>
+                </p>
+                <div>{comment.body}</div>
+              </article>
+            ))}
+            {comments.length === 0 ? <p className="empty">Chưa có bình luận cho bài này.</p> : null}
           </div>
         </article>
 
