@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import type { BlogPostData } from "@/lib/blog";
 
 type MessageState = {
@@ -16,6 +16,47 @@ const emptyForm = {
   tags: "JISOO, Blog",
   published: true
 };
+
+const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
+const MAX_IMAGE_DATA_CHARS = 1_500_000;
+
+function resizeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error("Không đọc được file ảnh."));
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onerror = () => reject(new Error("File ảnh chưa hợp lệ."));
+      image.onload = () => {
+        const maxWidth = 1400;
+        const maxHeight = 900;
+        const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          reject(new Error("Trình duyệt chưa hỗ trợ xử lý ảnh."));
+          return;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        context.fillStyle = "#fff7fa";
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
+      };
+
+      image.src = String(reader.result ?? "");
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
 
 export function AdminBlogEditor() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -72,6 +113,42 @@ export function AdminBlogEditor() {
 
     setMessage({ type: "success", text: result.message ?? "Đăng nhập admin thành công." });
     await loadPosts();
+  }
+
+  async function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setMessage({ type: "error", text: "Vui lòng chọn đúng file ảnh." });
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setMessage({ type: "error", text: "Ảnh tối đa 6MB. Hãy chọn ảnh nhẹ hơn." });
+      return;
+    }
+
+    setMessage({ type: "idle", text: "Đang xử lý ảnh..." });
+
+    try {
+      const dataUrl = await resizeImage(file);
+
+      if (dataUrl.length > MAX_IMAGE_DATA_CHARS) {
+        setMessage({ type: "error", text: "Ảnh sau khi nén vẫn quá lớn. Hãy chọn ảnh nhỏ hơn." });
+        return;
+      }
+
+      setForm((current) => ({ ...current, imageUrl: dataUrl }));
+      setMessage({ type: "success", text: "Đã tải ảnh lên bản nháp bài viết." });
+    } catch {
+      setMessage({ type: "error", text: "Chưa xử lý được ảnh này. Hãy thử ảnh khác." });
+    } finally {
+      event.target.value = "";
+    }
   }
 
   function editPost(post: BlogPostData) {
@@ -191,14 +268,6 @@ export function AdminBlogEditor() {
           />
         </label>
         <label>
-          Ảnh đại diện bài viết
-          <input
-            value={form.imageUrl}
-            onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
-            placeholder="/images/jisoo-vietnam-fanclub-cover.png hoặc URL ảnh"
-          />
-        </label>
-        <label>
           Hashtag
           <input
             value={form.tags}
@@ -206,6 +275,31 @@ export function AdminBlogEditor() {
             placeholder="JISOO, BLACKPINK"
           />
         </label>
+        <label>
+          Hoặc dán URL ảnh
+          <input
+            value={form.imageUrl.startsWith("data:image/") ? "" : form.imageUrl}
+            onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
+            placeholder="/images/jisoo-vietnam-fanclub-cover.png hoặc URL ảnh"
+          />
+        </label>
+        <label className="fullRow uploadLabel">
+          Tải ảnh trực tiếp
+          <input accept="image/*" type="file" onChange={handleImageUpload} />
+        </label>
+        {form.imageUrl ? (
+          <div className="imagePreview fullRow">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={form.imageUrl} alt="" />
+            <button
+              className="ghostButton"
+              type="button"
+              onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
+            >
+              Xóa ảnh
+            </button>
+          </div>
+        ) : null}
         <label className="fullRow">
           Nội dung bài viết
           <textarea
@@ -251,7 +345,9 @@ export function AdminBlogEditor() {
           <article key={post.id}>
             <div>
               <h3>{post.title}</h3>
-              <p>{post.published ? "Đã xuất bản" : "Bản nháp"} · {post.authorName}</p>
+              <p>
+                {post.published ? "Đã xuất bản" : "Bản nháp"} · {post.authorName}
+              </p>
             </div>
             <button className="ghostButton" type="button" onClick={() => editPost(post)}>
               Sửa

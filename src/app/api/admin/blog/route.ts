@@ -10,7 +10,7 @@ const blogPostSchema = z.object({
   title: z.string().trim().min(4).max(160),
   excerpt: z.string().trim().max(260).optional().default(""),
   body: z.string().trim().min(20).max(12000),
-  imageUrl: z.string().trim().max(800).optional().default(""),
+  imageUrl: z.string().trim().max(1_500_000).optional().default(""),
   tags: z.array(z.string().trim().max(40)).max(8).optional().default([]),
   published: z.boolean().optional().default(true)
 });
