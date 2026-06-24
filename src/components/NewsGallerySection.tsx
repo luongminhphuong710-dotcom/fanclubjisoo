@@ -5,8 +5,6 @@ import type { NewsCardData, NewsData } from "@/lib/pageData";
 
 type NewsApiResponse = {
   data: NewsCardData[];
-  databaseReady: boolean;
-  mode: NewsData["newsMode"];
   updatedAt: string;
 };
 
@@ -63,21 +61,11 @@ function relativeTime(value: string | null, nowMs: number, freshLabel = "vừa �
   return `${diffDays} ngày trước`;
 }
 
-export function NewsGallerySection({
-  news,
-  databaseReady,
-  newsMode,
-  updatedAt,
-  limit,
-  pollMs = 60_000
-}: NewsGallerySectionProps) {
+export function NewsGallerySection({ news, updatedAt, limit, pollMs = 60_000 }: NewsGallerySectionProps) {
   const [items, setItems] = useState(news);
-  const [ready, setReady] = useState(databaseReady);
-  const [mode, setMode] = useState(newsMode);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(updatedAt);
   const [nowMs, setNowMs] = useState(() => new Date(updatedAt).getTime() || Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const isLiveRss = mode === "live-rss-fallback";
   const requestLimit = useMemo(() => limit ?? Math.max(news.length, 6), [limit, news.length]);
 
   useEffect(() => {
@@ -107,8 +95,6 @@ export function NewsGallerySection({
         }
 
         setItems(payload.data);
-        setReady(payload.databaseReady);
-        setMode(payload.mode);
         setLastUpdatedAt(payload.updatedAt);
         setNowMs(Date.now());
       } catch {
@@ -146,15 +132,11 @@ export function NewsGallerySection({
     <div className="panel" id="news">
       <div className="panelHeader">
         <h2>Tin mới #JISOO</h2>
-        <span>{isLiveRss ? "Đang lọc RSS" : `${items.length} bài`}</span>
       </div>
       <p className="updateMeta">
         <span className={isRefreshing ? "liveDot refreshing" : "liveDot"} />
         Cập nhật {lastRefreshText} · {formatClock(lastUpdatedAt)}
       </p>
-      {!ready ? (
-        <p className="sectionHint">Tin tức đang chạy ở chế độ RSS live vì chưa kết nối PostgreSQL.</p>
-      ) : null}
       <div className="newsList">
         {items.map((article) => (
           <a className="newsItem" href={article.url} key={article.id} target="_blank" rel="noreferrer">
