@@ -90,21 +90,56 @@ a {
 }
 
 .hero {
-  min-height: 280px;
-  display: grid;
-  align-items: end;
-  padding: 40px;
-  color: #fff;
-  background:
-    linear-gradient(120deg, rgba(242, 99, 152, 0.88), rgba(115, 36, 36, 0.76)),
-    url("https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1600&q=80");
-  background-position: center;
-  background-size: cover;
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  background: #fbe4ec;
   border-radius: 8px;
 }
 
 .heroCompact {
+  display: grid;
   min-height: 220px;
+  align-items: end;
+}
+
+.heroCover {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.heroCompact .heroCover {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.42;
+}
+
+.heroCompact::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(115, 36, 36, 0.62), rgba(242, 99, 152, 0.08));
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  padding: 40px;
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(115, 36, 36, 0.22);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .eyebrow {
@@ -587,7 +622,14 @@ h1 {
   }
 
   .hero {
-    min-height: 360px;
+    padding: 0;
+  }
+
+  .heroCompact {
+    min-height: 300px;
+  }
+
+  .heroContent {
     padding: 24px;
   }
 
