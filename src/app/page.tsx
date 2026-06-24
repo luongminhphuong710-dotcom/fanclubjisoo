@@ -21,7 +21,7 @@ export default async function HomePage() {
       <HeroBanner />
       <RegisterSection />
 
-      <section className="grid">
+      <section className="singleColumn">
         <MusicRankingsSection tracks={musicRankings} updatedAt={rankingsUpdatedAt} />
         <NewsGallerySection databaseReady={databaseReady} news={news} newsMode={newsMode} updatedAt={updatedAt} />
       </section>
