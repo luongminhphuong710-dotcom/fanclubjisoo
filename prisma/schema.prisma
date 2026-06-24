@@ -227,6 +227,8 @@ model User {
   email        String          @unique
   passwordHash String?
   displayName  String
+  fanName      String?
+  favoriteSong String?
   avatarUrl    String?
   role         UserRole        @default(FAN)
   createdAt    DateTime        @default(now())

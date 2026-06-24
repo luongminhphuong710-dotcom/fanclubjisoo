@@ -4,6 +4,7 @@ import { HeroBanner } from "@/components/HeroBanner";
 import { MovieGallerySection } from "@/components/MovieGallerySection";
 import { MusicRankingsSection } from "@/components/MusicRankingsSection";
 import { NewsGallerySection } from "@/components/NewsGallerySection";
+import { RegisterSection } from "@/components/RegisterSection";
 import { SiteToolbar } from "@/components/SiteToolbar";
 import { listBlogPosts } from "@/lib/blog";
 import { getHomeData } from "@/lib/pageData";
@@ -18,6 +19,7 @@ export default async function HomePage() {
     <main className="shell">
       <SiteToolbar />
       <HeroBanner />
+      <RegisterSection />
 
       <section className="grid">
         <MusicRankingsSection tracks={musicRankings} updatedAt={rankingsUpdatedAt} />

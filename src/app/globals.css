@@ -401,6 +401,13 @@ h1 {
   line-height: 1.6;
 }
 
+.registerQuickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 .signupForm {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

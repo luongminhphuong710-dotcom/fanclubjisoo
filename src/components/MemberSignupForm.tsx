@@ -12,14 +12,23 @@ export function MemberSignupForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setState({ status: "loading", message: "Đang gửi đăng ký..." });
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const password = String(formData.get("password") ?? "");
+    const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
+
+    if (password !== passwordConfirm) {
+      setState({ status: "error", message: "Mật khẩu xác nhận chưa khớp." });
+      return;
+    }
+
+    setState({ status: "loading", message: "Đang tạo tài khoản thành viên..." });
 
     const payload = {
       displayName: String(formData.get("displayName") ?? ""),
       email: String(formData.get("email") ?? ""),
+      password,
       fanName: String(formData.get("fanName") ?? ""),
       favoriteSong: String(formData.get("favoriteSong") ?? "")
     };
@@ -45,7 +54,7 @@ export function MemberSignupForm() {
     form.reset();
     setState({
       status: "success",
-      message: result.message ?? "Bạn đã đăng ký thành viên JISOO Fanclub."
+      message: result.message ?? "Tài khoản thành viên JISOO Fanclub đã được tạo."
     });
   }
 
@@ -53,15 +62,23 @@ export function MemberSignupForm() {
     <form className="signupForm" onSubmit={handleSubmit}>
       <label>
         Tên hiển thị
-        <input name="displayName" placeholder="Vi du: Blink Jisoo" required minLength={2} />
+        <input name="displayName" placeholder="Ví dụ: Blink Jisoo" required minLength={2} />
       </label>
       <label>
         Email
         <input name="email" type="email" placeholder="you@example.com" required />
       </label>
       <label>
+        Mật khẩu
+        <input name="password" type="password" placeholder="Tối thiểu 8 ký tự" required minLength={8} />
+      </label>
+      <label>
+        Nhập lại mật khẩu
+        <input name="passwordConfirm" type="password" placeholder="Nhập lại mật khẩu" required minLength={8} />
+      </label>
+      <label>
         Tên fan / biệt danh
-        <input name="fanName" placeholder="Vi du: Sooya" />
+        <input name="fanName" placeholder="Ví dụ: Sooya" />
       </label>
       <label>
         Bài hát JISOO yêu thích
@@ -75,7 +92,7 @@ export function MemberSignupForm() {
         </select>
       </label>
       <button type="submit" disabled={state.status === "loading"}>
-        {state.status === "loading" ? "Đang gửi..." : "Đăng ký thành viên"}
+        {state.status === "loading" ? "Đang tạo..." : "Đăng ký tài khoản"}
       </button>
       {state.message ? <p className={`formMessage ${state.status}`}>{state.message}</p> : null}
     </form>
