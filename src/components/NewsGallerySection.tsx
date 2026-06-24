@@ -30,7 +30,7 @@ function formatClock(value: string): string {
   });
 }
 
-function relativeTime(value: string | null, nowMs: number): string {
+function relativeTime(value: string | null, nowMs: number, freshLabel = "vừa đăng"): string {
   if (!value) {
     return "chưa rõ thời gian";
   }
@@ -41,6 +41,10 @@ function relativeTime(value: string | null, nowMs: number): string {
   }
 
   const diffSeconds = Math.max(0, Math.floor((nowMs - time) / 1000));
+  if (diffSeconds < 10) {
+    return freshLabel;
+  }
+
   if (diffSeconds < 60) {
     return `${Math.max(diffSeconds, 1)} giây trước`;
   }
@@ -65,7 +69,7 @@ export function NewsGallerySection({
   newsMode,
   updatedAt,
   limit,
-  pollMs = 60_000
+  pollMs = 30_000
 }: NewsGallerySectionProps) {
   const [items, setItems] = useState(news);
   const [ready, setReady] = useState(databaseReady);
@@ -78,9 +82,15 @@ export function NewsGallerySection({
 
   useEffect(() => {
     let active = true;
+    let refreshing = false;
     const controller = new AbortController();
 
     async function refresh() {
+      if (refreshing) {
+        return;
+      }
+
+      refreshing = true;
       setIsRefreshing(true);
       try {
         const response = await fetch(`/api/news?hashtag=JISOO&limit=${requestLimit}`, {
@@ -105,14 +115,16 @@ export function NewsGallerySection({
       } catch {
         // Keep the previous data if a live refresh fails.
       } finally {
+        refreshing = false;
         if (active) {
           setIsRefreshing(false);
         }
       }
     }
 
+    void refresh();
     const refreshTimer = window.setInterval(refresh, pollMs);
-    const clockTimer = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1_000);
 
     return () => {
       active = false;
@@ -122,6 +134,8 @@ export function NewsGallerySection({
     };
   }, [pollMs, requestLimit]);
 
+  const lastRefreshText = relativeTime(lastUpdatedAt, nowMs, "vừa cập nhật");
+
   return (
     <div className="panel" id="news">
       <div className="panelHeader">
@@ -130,7 +144,7 @@ export function NewsGallerySection({
       </div>
       <p className="updateMeta">
         <span className={isRefreshing ? "liveDot refreshing" : "liveDot"} />
-        Cập nhật lúc {formatClock(lastUpdatedAt)}
+        Cập nhật {lastRefreshText} · {formatClock(lastUpdatedAt)}
       </p>
       {!ready ? (
         <p className="sectionHint">Tin tức đang chạy ở chế độ RSS live vì chưa kết nối PostgreSQL.</p>

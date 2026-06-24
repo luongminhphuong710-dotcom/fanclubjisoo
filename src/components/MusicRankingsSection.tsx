@@ -30,22 +30,58 @@ function formatClock(value: string): string {
   });
 }
 
+function relativeTime(value: string, nowMs: number): string {
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) {
+    return "đang cập nhật";
+  }
+
+  const diffSeconds = Math.max(0, Math.floor((nowMs - time) / 1000));
+  if (diffSeconds < 10) {
+    return "vừa cập nhật";
+  }
+
+  if (diffSeconds < 60) {
+    return `${diffSeconds} giây trước`;
+  }
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} phút trước`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} giờ trước`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} ngày trước`;
+}
+
 export function MusicRankingsSection({
   tracks,
   updatedAt = new Date().toISOString(),
   limit,
-  pollMs = 60_000
+  pollMs = 30_000
 }: MusicRankingsSectionProps) {
   const [items, setItems] = useState(tracks);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(updatedAt);
+  const [nowMs, setNowMs] = useState(Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const requestLimit = useMemo(() => limit ?? Math.max(tracks.length, 8), [limit, tracks.length]);
 
   useEffect(() => {
     let active = true;
+    let refreshing = false;
     const controller = new AbortController();
 
     async function refresh() {
+      if (refreshing) {
+        return;
+      }
+
+      refreshing = true;
       setIsRefreshing(true);
       try {
         const response = await fetch(`/api/music-rankings?limit=${requestLimit}`, {
@@ -64,23 +100,30 @@ export function MusicRankingsSection({
 
         setItems(payload.data);
         setLastUpdatedAt(payload.updatedAt);
+        setNowMs(Date.now());
       } catch {
         // Keep the previous ranking snapshot if a live refresh fails.
       } finally {
+        refreshing = false;
         if (active) {
           setIsRefreshing(false);
         }
       }
     }
 
-    const timer = window.setInterval(refresh, pollMs);
+    void refresh();
+    const refreshTimer = window.setInterval(refresh, pollMs);
+    const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1_000);
 
     return () => {
       active = false;
       controller.abort();
-      window.clearInterval(timer);
+      window.clearInterval(refreshTimer);
+      window.clearInterval(clockTimer);
     };
   }, [pollMs, requestLimit]);
+
+  const lastRefreshText = relativeTime(lastUpdatedAt, nowMs);
 
   return (
     <div className="panel" id="rankings">
@@ -90,7 +133,7 @@ export function MusicRankingsSection({
       </div>
       <p className="updateMeta">
         <span className={isRefreshing ? "liveDot refreshing" : "liveDot"} />
-        Cập nhật lúc {formatClock(lastUpdatedAt)}
+        Cập nhật {lastRefreshText} · {formatClock(lastUpdatedAt)}
       </p>
       <p className="sectionHint">
         Xếp hạng theo chỉ số popularity/rank live từ Deezer. Bấm vào bài hát hoặc nút nền tảng để mở ở tab mới.
