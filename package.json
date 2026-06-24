@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
+    "@vercel/blob": "^2.4.1",
     "google-news-url-decoder": "^1.2.2",
     "next": "latest",
     "react": "latest",

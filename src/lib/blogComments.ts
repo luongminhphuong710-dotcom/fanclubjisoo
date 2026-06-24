@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { readBlobJson, writeBlobJson } from "@/lib/blobJsonStore";
 import { db } from "@/lib/db";
 
 export type BlogCommentData = {
@@ -18,6 +19,7 @@ export type BlogCommentInput = {
   authorName: string;
   body: string;
 };
+const BLOG_COMMENTS_BLOB = "data/blog-comments.json";
 
 function dataPath() {
   if (process.env.VERCEL) {
@@ -56,6 +58,12 @@ function normalizeFallbackComment(comment: Partial<BlogCommentData>): BlogCommen
 }
 
 async function readFallbackComments(): Promise<BlogCommentData[]> {
+  const blobComments = await readBlobJson<Partial<BlogCommentData>[]>(BLOG_COMMENTS_BLOB);
+
+  if (Array.isArray(blobComments)) {
+    return blobComments.map(normalizeFallbackComment).filter((comment) => comment.postId && comment.body);
+  }
+
   try {
     const content = await readFile(dataPath(), "utf8");
     const comments = JSON.parse(content) as Partial<BlogCommentData>[];
@@ -66,25 +74,33 @@ async function readFallbackComments(): Promise<BlogCommentData[]> {
 }
 
 async function writeFallbackComments(comments: BlogCommentData[]) {
+  if (await writeBlobJson(BLOG_COMMENTS_BLOB, comments)) {
+    return;
+  }
+
   const filePath = dataPath();
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(comments, null, 2)}\n`, "utf8");
 }
 
 export async function listBlogComments(postId: string) {
-  try {
-    const comments = await db.blogComment.findMany({
-      where: { postId },
-      orderBy: { createdAt: "asc" }
-    });
+  if (process.env.DATABASE_URL) {
+    try {
+      const comments = await db.blogComment.findMany({
+        where: { postId },
+        orderBy: { createdAt: "asc" }
+      });
 
-    return comments.map(serializeDbComment);
-  } catch {
-    const comments = await readFallbackComments();
-    return comments
-      .filter((comment) => comment.postId === postId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      return comments.map(serializeDbComment);
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
+    }
   }
+
+  const comments = await readFallbackComments();
+  return comments
+    .filter((comment) => comment.postId === postId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
 export async function createBlogComment(input: BlogCommentInput) {
@@ -95,19 +111,23 @@ export async function createBlogComment(input: BlogCommentInput) {
     body: input.body.trim()
   };
 
-  try {
-    const created = await db.blogComment.create({ data: payload });
-    return serializeDbComment(created);
-  } catch {
-    const comments = await readFallbackComments();
-    const created: BlogCommentData = {
-      ...payload,
-      id: randomUUID(),
-      createdAt: now,
-      updatedAt: now
-    };
-
-    await writeFallbackComments([...comments, created]);
-    return created;
+  if (process.env.DATABASE_URL) {
+    try {
+      const created = await db.blogComment.create({ data: payload });
+      return serializeDbComment(created);
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
+    }
   }
+
+  const comments = await readFallbackComments();
+  const created: BlogCommentData = {
+    ...payload,
+    id: randomUUID(),
+    createdAt: now,
+    updatedAt: now
+  };
+
+  await writeFallbackComments([...comments, created]);
+  return created;
 }

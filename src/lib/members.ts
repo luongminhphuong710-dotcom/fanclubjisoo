@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import { UserRole } from "@prisma/client";
+import { readBlobJson, writeBlobJson } from "@/lib/blobJsonStore";
 import { db } from "@/lib/db";
 
 export type MemberRegistrationInput = {
@@ -30,6 +31,7 @@ type StoredMember = PublicMember & {
 };
 
 export const MEMBER_SESSION_COOKIE = "jisoo_member_session";
+const MEMBERS_BLOB = "data/members.json";
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -99,32 +101,45 @@ export async function verifyPassword(password: string, passwordHash: string | nu
 }
 
 export async function readFallbackMembers(): Promise<StoredMember[]> {
+  const blobMembers = await readBlobJson<Partial<StoredMember>[]>(MEMBERS_BLOB);
+
+  if (Array.isArray(blobMembers)) {
+    return normalizeMembers(blobMembers);
+  }
+
   try {
     const content = await readFile(dataPath(), "utf8");
     const members = JSON.parse(content) as Partial<StoredMember>[];
-
-    return members
-      .filter((member) => member.id && member.email && member.displayName && member.passwordHash)
-      .map((member) => ({
-        id: member.id ?? crypto.randomUUID(),
-        email: member.email ?? "",
-        displayName: member.displayName ?? "",
-        fanName: member.fanName ?? null,
-        favoriteSong: member.favoriteSong ?? null,
-        role: member.role ?? "FAN",
-        passwordHash: member.passwordHash ?? "",
-        createdAt: member.createdAt ?? new Date().toISOString(),
-        updatedAt: member.updatedAt ?? new Date().toISOString()
-      }));
+    return normalizeMembers(members);
   } catch {
     return [];
   }
 }
 
 async function writeFallbackMembers(members: StoredMember[]) {
+  if (await writeBlobJson(MEMBERS_BLOB, members)) {
+    return;
+  }
+
   const filePath = dataPath();
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(members, null, 2)}\n`, "utf8");
+}
+
+function normalizeMembers(members: Partial<StoredMember>[]) {
+  return members
+    .filter((member) => member.id && member.email && member.displayName && member.passwordHash)
+    .map((member) => ({
+      id: member.id ?? crypto.randomUUID(),
+      email: member.email ?? "",
+      displayName: member.displayName ?? "",
+      fanName: member.fanName ?? null,
+      favoriteSong: member.favoriteSong ?? null,
+      role: member.role ?? "FAN",
+      passwordHash: member.passwordHash ?? "",
+      createdAt: member.createdAt ?? new Date().toISOString(),
+      updatedAt: member.updatedAt ?? new Date().toISOString()
+    }));
 }
 
 export function createMemberCookie(memberId: string, email: string) {
@@ -160,69 +175,75 @@ export async function registerMember(input: MemberRegistrationInput) {
   const passwordHash = await hashPassword(input.password);
   const normalizedEmail = input.email.trim().toLowerCase();
 
-  try {
-    const user = await db.user.upsert({
-      where: { email: normalizedEmail },
-      update: {
-        displayName: input.displayName,
-        fanName: input.fanName || null,
-        favoriteSong: input.favoriteSong || null,
-        passwordHash
-      },
-      create: {
-        displayName: input.displayName,
-        email: normalizedEmail,
-        fanName: input.fanName || null,
-        favoriteSong: input.favoriteSong || null,
-        passwordHash,
-        role: UserRole.FAN
-      }
-    });
-
-    return serializeDbUser(user);
-  } catch {
-    const members = await readFallbackMembers();
-    const existingIndex = members.findIndex((member) => member.email.toLowerCase() === normalizedEmail);
-    const memberData = {
-      displayName: input.displayName,
-      email: normalizedEmail,
-      fanName: input.fanName || null,
-      favoriteSong: input.favoriteSong || null,
-      passwordHash,
-      role: "FAN"
-    };
-
-    if (existingIndex >= 0) {
-      members[existingIndex] = {
-        ...members[existingIndex],
-        ...memberData,
-        updatedAt: now
-      };
-    } else {
-      members.push({
-        id: crypto.randomUUID(),
-        ...memberData,
-        createdAt: now,
-        updatedAt: now
+  if (process.env.DATABASE_URL) {
+    try {
+      const user = await db.user.upsert({
+        where: { email: normalizedEmail },
+        update: {
+          displayName: input.displayName,
+          fanName: input.fanName || null,
+          favoriteSong: input.favoriteSong || null,
+          passwordHash
+        },
+        create: {
+          displayName: input.displayName,
+          email: normalizedEmail,
+          fanName: input.fanName || null,
+          favoriteSong: input.favoriteSong || null,
+          passwordHash,
+          role: UserRole.FAN
+        }
       });
-    }
 
-    await writeFallbackMembers(members);
-    return publicMember(members[existingIndex >= 0 ? existingIndex : members.length - 1]);
+      return serializeDbUser(user);
+    } catch {
+      // Fallback below keeps preview mode working before PostgreSQL is configured.
+    }
   }
+
+  const members = await readFallbackMembers();
+  const existingIndex = members.findIndex((member) => member.email.toLowerCase() === normalizedEmail);
+  const memberData = {
+    displayName: input.displayName,
+    email: normalizedEmail,
+    fanName: input.fanName || null,
+    favoriteSong: input.favoriteSong || null,
+    passwordHash,
+    role: "FAN"
+  };
+
+  if (existingIndex >= 0) {
+    members[existingIndex] = {
+      ...members[existingIndex],
+      ...memberData,
+      updatedAt: now
+    };
+  } else {
+    members.push({
+      id: crypto.randomUUID(),
+      ...memberData,
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  await writeFallbackMembers(members);
+  return publicMember(members[existingIndex >= 0 ? existingIndex : members.length - 1]);
 }
 
 export async function authenticateMember(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  try {
-    const user = await db.user.findUnique({ where: { email: normalizedEmail } });
+  if (process.env.DATABASE_URL) {
+    try {
+      const user = await db.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (user && (await verifyPassword(password, user.passwordHash))) {
-      return serializeDbUser(user);
+      if (user && (await verifyPassword(password, user.passwordHash))) {
+        return serializeDbUser(user);
+      }
+    } catch {
+      // Fallback below keeps preview mode working before PostgreSQL is configured.
     }
-  } catch {
-    // Fallback below keeps preview mode working before PostgreSQL is configured.
   }
 
   const members = await readFallbackMembers();
@@ -242,14 +263,16 @@ export async function getMemberFromRequest(request: Request) {
     return null;
   }
 
-  try {
-    const user = await db.user.findUnique({ where: { id: session.memberId } });
+  if (process.env.DATABASE_URL) {
+    try {
+      const user = await db.user.findUnique({ where: { id: session.memberId } });
 
-    if (user && user.email.toLowerCase() === session.email.toLowerCase()) {
-      return serializeDbUser(user);
+      if (user && user.email.toLowerCase() === session.email.toLowerCase()) {
+        return serializeDbUser(user);
+      }
+    } catch {
+      // Fallback below keeps preview mode working before PostgreSQL is configured.
     }
-  } catch {
-    // Fallback below keeps preview mode working before PostgreSQL is configured.
   }
 
   const members = await readFallbackMembers();
@@ -261,17 +284,21 @@ export async function getMemberFromRequest(request: Request) {
 }
 
 export async function listMembers() {
-  try {
-    const users = await db.user.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200
-    });
+  if (process.env.DATABASE_URL) {
+    try {
+      const users = await db.user.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 200
+      });
 
-    return users.map(serializeDbUser);
-  } catch {
-    const members = await readFallbackMembers();
-    return members
-      .map(publicMember)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return users.map(serializeDbUser);
+    } catch {
+      // Fallback below keeps preview mode working before PostgreSQL is configured.
+    }
   }
+
+  const members = await readFallbackMembers();
+  return members
+    .map(publicMember)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

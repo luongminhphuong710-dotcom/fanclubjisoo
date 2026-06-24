@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { readBlobJson, writeBlobJson } from "@/lib/blobJsonStore";
 import { db } from "@/lib/db";
 
 export type BlogPostData = {
@@ -57,6 +58,7 @@ const seedPosts: BlogPostData[] = [
     updatedAt: "2026-06-24T00:00:00.000Z"
   }
 ];
+const BLOG_POSTS_BLOB = "data/blog-posts.json";
 
 function dataPath() {
   if (process.env.VERCEL) {
@@ -147,6 +149,12 @@ function serializeDbPost(post: {
 }
 
 async function readFallbackPosts(): Promise<BlogPostData[]> {
+  const blobPosts = await readBlobJson<Partial<BlogPostData>[]>(BLOG_POSTS_BLOB);
+
+  if (Array.isArray(blobPosts)) {
+    return blobPosts.length > 0 ? blobPosts.map(normalizeFallbackPost) : seedPosts;
+  }
+
   try {
     const content = await readFile(dataPath(), "utf8");
     const posts = JSON.parse(content) as Partial<BlogPostData>[];
@@ -157,6 +165,10 @@ async function readFallbackPosts(): Promise<BlogPostData[]> {
 }
 
 async function writeFallbackPosts(posts: BlogPostData[]) {
+  if (await writeBlobJson(BLOG_POSTS_BLOB, posts)) {
+    return;
+  }
+
   const filePath = dataPath();
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(posts, null, 2)}\n`, "utf8");
@@ -175,34 +187,42 @@ export async function listBlogPosts(options: ListBlogPostsOptions = {}) {
   const limit = options.limit ?? 20;
   const take = Math.max(limit, 100);
 
-  try {
-    const posts = await db.blogPost.findMany({
-      where: includeDrafts ? undefined : { published: true },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      take
-    });
+  if (process.env.DATABASE_URL) {
+    try {
+      const posts = await db.blogPost.findMany({
+        where: includeDrafts ? undefined : { published: true },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take
+      });
 
-    return filterByTag(posts.map(serializeDbPost), options.tag).slice(0, limit);
-  } catch {
-    const posts = await readFallbackPosts();
-    const visiblePosts = includeDrafts ? posts : posts.filter((post) => post.published);
-    return filterByTag(sortPosts(visiblePosts), options.tag).slice(0, limit);
+      return filterByTag(posts.map(serializeDbPost), options.tag).slice(0, limit);
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
+    }
   }
+
+  const posts = await readFallbackPosts();
+  const visiblePosts = includeDrafts ? posts : posts.filter((post) => post.published);
+  return filterByTag(sortPosts(visiblePosts), options.tag).slice(0, limit);
 }
 
 export async function getBlogPostBySlug(slug: string, options: { includeDrafts?: boolean } = {}) {
-  try {
-    const post = await db.blogPost.findUnique({ where: { slug } });
+  if (process.env.DATABASE_URL) {
+    try {
+      const post = await db.blogPost.findUnique({ where: { slug } });
 
-    if (!post || (!options.includeDrafts && !post.published)) {
-      return null;
+      if (!post || (!options.includeDrafts && !post.published)) {
+        return null;
+      }
+
+      return serializeDbPost(post);
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
     }
-
-    return serializeDbPost(post);
-  } catch {
-    const posts = await readFallbackPosts();
-    return posts.find((post) => post.slug === slug && (options.includeDrafts || post.published)) ?? null;
   }
+
+  const posts = await readFallbackPosts();
+  return posts.find((post) => post.slug === slug && (options.includeDrafts || post.published)) ?? null;
 }
 
 export async function listBlogTags() {
@@ -247,93 +267,105 @@ export async function createBlogPost(input: BlogPostInput) {
     publishedAt: published ? new Date(now) : null
   };
 
-  try {
-    const created = await db.blogPost.create({ data: payload });
-    return serializeDbPost(created);
-  } catch {
-    const posts = await readFallbackPosts();
-    const created: BlogPostData = {
-      ...payload,
-      id: randomUUID(),
-      publishedAt: toIso(payload.publishedAt),
-      createdAt: now,
-      updatedAt: now
-    };
-
-    await writeFallbackPosts([created, ...posts]);
-    return created;
+  if (process.env.DATABASE_URL) {
+    try {
+      const created = await db.blogPost.create({ data: payload });
+      return serializeDbPost(created);
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
+    }
   }
+
+  const posts = await readFallbackPosts();
+  const created: BlogPostData = {
+    ...payload,
+    id: randomUUID(),
+    publishedAt: toIso(payload.publishedAt),
+    createdAt: now,
+    updatedAt: now
+  };
+
+  await writeFallbackPosts([created, ...posts]);
+  return created;
 }
 
 export async function updateBlogPost(id: string, input: BlogPostInput) {
   const now = new Date().toISOString();
   const published = input.published ?? true;
 
-  try {
-    const existing = await db.blogPost.findUnique({ where: { id } });
+  if (process.env.DATABASE_URL) {
+    try {
+      const existing = await db.blogPost.findUnique({ where: { id } });
 
-    if (!existing) {
-      return null;
-    }
-
-    const updated = await db.blogPost.update({
-      where: { id },
-      data: {
-        title: input.title.trim(),
-        excerpt: input.excerpt?.trim() || null,
-        body: input.body.trim(),
-        imageUrl: input.imageUrl?.trim() || null,
-        tags: normalizeTags(input.tags),
-        published,
-        authorName: input.authorName?.trim() || existing.authorName,
-        authorEmail: input.authorEmail === undefined ? existing.authorEmail : input.authorEmail?.trim() || null,
-        publishedAt: published ? existing.publishedAt ?? new Date(now) : null
+      if (!existing) {
+        return null;
       }
-    });
 
-    return serializeDbPost(updated);
-  } catch {
-    const posts = await readFallbackPosts();
-    const index = posts.findIndex((post) => post.id === id);
+      const updated = await db.blogPost.update({
+        where: { id },
+        data: {
+          title: input.title.trim(),
+          excerpt: input.excerpt?.trim() || null,
+          body: input.body.trim(),
+          imageUrl: input.imageUrl?.trim() || null,
+          tags: normalizeTags(input.tags),
+          published,
+          authorName: input.authorName?.trim() || existing.authorName,
+          authorEmail: input.authorEmail === undefined ? existing.authorEmail : input.authorEmail?.trim() || null,
+          publishedAt: published ? existing.publishedAt ?? new Date(now) : null
+        }
+      });
 
-    if (index < 0) {
-      return null;
+      return serializeDbPost(updated);
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
     }
-
-    const existing = posts[index];
-    const updated: BlogPostData = {
-      ...existing,
-      title: input.title.trim(),
-      excerpt: input.excerpt?.trim() || null,
-      body: input.body.trim(),
-      imageUrl: input.imageUrl?.trim() || null,
-      tags: normalizeTags(input.tags),
-      published,
-      authorName: input.authorName?.trim() || existing.authorName,
-      authorEmail: input.authorEmail === undefined ? existing.authorEmail : input.authorEmail?.trim() || null,
-      publishedAt: published ? existing.publishedAt ?? now : null,
-      updatedAt: now
-    };
-
-    posts[index] = updated;
-    await writeFallbackPosts(posts);
-    return updated;
   }
+
+  const posts = await readFallbackPosts();
+  const index = posts.findIndex((post) => post.id === id);
+
+  if (index < 0) {
+    return null;
+  }
+
+  const existing = posts[index];
+  const updated: BlogPostData = {
+    ...existing,
+    title: input.title.trim(),
+    excerpt: input.excerpt?.trim() || null,
+    body: input.body.trim(),
+    imageUrl: input.imageUrl?.trim() || null,
+    tags: normalizeTags(input.tags),
+    published,
+    authorName: input.authorName?.trim() || existing.authorName,
+    authorEmail: input.authorEmail === undefined ? existing.authorEmail : input.authorEmail?.trim() || null,
+    publishedAt: published ? existing.publishedAt ?? now : null,
+    updatedAt: now
+  };
+
+  posts[index] = updated;
+  await writeFallbackPosts(posts);
+  return updated;
 }
 
 export async function deleteBlogPost(id: string) {
-  try {
-    await db.blogPost.delete({ where: { id } });
-    return true;
-  } catch {
-    const posts = await readFallbackPosts();
-    const nextPosts = posts.filter((post) => post.id !== id);
-
-    if (nextPosts.length === posts.length) {
-      return false;
+  if (process.env.DATABASE_URL) {
+    try {
+      await db.blogPost.delete({ where: { id } });
+      return true;
+    } catch {
+      // Fallback below keeps the site editable before PostgreSQL is configured.
     }
-
-    await writeFallbackPosts(nextPosts);
-    return true;
   }
+
+  const posts = await readFallbackPosts();
+  const nextPosts = posts.filter((post) => post.id !== id);
+
+  if (nextPosts.length === posts.length) {
+    return false;
+  }
+
+  await writeFallbackPosts(nextPosts);
+  return true;
 }
