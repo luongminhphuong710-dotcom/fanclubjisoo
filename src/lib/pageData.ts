@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { DEFAULT_HASHTAG, getLiveHashtagNews } from "@/lib/fallbackNews";
-import { getMusicRankings } from "@/lib/musicRankings";
+import { DEFAULT_HASHTAG, getCachedLiveHashtagNews } from "@/lib/fallbackNews";
+import { getCachedMusicRankings } from "@/lib/musicRankings";
 
 export type NewsCardData = {
   id: string;
@@ -57,35 +57,35 @@ export async function getNewsData(limit = 6): Promise<NewsData> {
       };
     }
 
-    const liveNews = await getLiveHashtagNews({ hashtag: DEFAULT_HASHTAG, limit });
+    const liveNews = await getCachedLiveHashtagNews({ hashtag: DEFAULT_HASHTAG, limit });
     return {
-      news: liveNews.map(serializeNewsArticle),
+      news: liveNews.data.map(serializeNewsArticle),
       databaseReady: true,
       newsMode: "live-rss-fallback",
-      updatedAt: new Date().toISOString()
+      updatedAt: liveNews.updatedAt
     };
   } catch {
     // Preview mode still works without PostgreSQL.
   }
 
-  const liveNews = await getLiveHashtagNews({ hashtag: DEFAULT_HASHTAG, limit });
+  const liveNews = await getCachedLiveHashtagNews({ hashtag: DEFAULT_HASHTAG, limit });
   return {
-    news: liveNews.map(serializeNewsArticle),
+    news: liveNews.data.map(serializeNewsArticle),
     databaseReady: false,
     newsMode: "live-rss-fallback",
-    updatedAt: new Date().toISOString()
+    updatedAt: liveNews.updatedAt
   };
 }
 
 export async function getHomeData() {
   const [musicRankings, newsData] = await Promise.all([
-    getMusicRankings({ limit: 8 }).catch(() => []),
+    getCachedMusicRankings({ limit: 8 }).catch(() => ({ data: [], updatedAt: new Date().toISOString() })),
     getNewsData(6)
   ]);
 
   return {
-    musicRankings,
-    rankingsUpdatedAt: new Date().toISOString(),
+    musicRankings: musicRankings.data,
+    rankingsUpdatedAt: musicRankings.updatedAt,
     ...newsData
   };
 }

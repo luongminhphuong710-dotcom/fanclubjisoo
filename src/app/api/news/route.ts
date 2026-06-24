@@ -1,11 +1,15 @@
 import { ArticleStatus } from "@prisma/client";
 import { db } from "@/lib/db";
-import { DEFAULT_HASHTAG, getLiveHashtagNews, normalizeHashtag } from "@/lib/fallbackNews";
+import { DEFAULT_HASHTAG, getCachedLiveHashtagNews, normalizeHashtag } from "@/lib/fallbackNews";
 import { json } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const NEWS_CACHE_HEADERS = {
+  "cache-control": "public, max-age=0, s-maxage=30, stale-while-revalidate=120"
+};
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -51,17 +55,18 @@ export async function GET(request: Request) {
       }));
 
     if (data.length === 0) {
-      const liveNews = await getLiveHashtagNews({ hashtag, limit: take });
+      const liveNews = await getCachedLiveHashtagNews({ hashtag, limit: take });
 
       return json(
         {
-        data: liveNews,
+        data: liveNews.data,
         databaseReady: true,
         mode: "live-rss-fallback",
         hashtag: `#${hashtag}`,
-        updatedAt: new Date().toISOString()
+        updatedAt: liveNews.updatedAt,
+        cache: liveNews.cacheStatus
         },
-        { headers: { "cache-control": "no-store, max-age=0" } }
+        { headers: NEWS_CACHE_HEADERS }
       );
     }
 
@@ -72,19 +77,20 @@ export async function GET(request: Request) {
       mode: "database",
       updatedAt: new Date().toISOString()
       },
-      { headers: { "cache-control": "no-store, max-age=0" } }
+      { headers: NEWS_CACHE_HEADERS }
     );
   } catch {
-    const liveNews = await getLiveHashtagNews({ hashtag, limit: take });
+    const liveNews = await getCachedLiveHashtagNews({ hashtag, limit: take });
     return json(
       {
-      data: liveNews,
+      data: liveNews.data,
       databaseReady: false,
       mode: "live-rss-fallback",
       hashtag: `#${hashtag}`,
-      updatedAt: new Date().toISOString()
+      updatedAt: liveNews.updatedAt,
+      cache: liveNews.cacheStatus
       },
-      { headers: { "cache-control": "no-store, max-age=0" } }
+      { headers: NEWS_CACHE_HEADERS }
     );
   }
 }

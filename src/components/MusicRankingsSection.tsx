@@ -63,7 +63,7 @@ export function MusicRankingsSection({
   tracks,
   updatedAt = new Date().toISOString(),
   limit,
-  pollMs = 30_000
+  pollMs = 5 * 60_000
 }: MusicRankingsSectionProps) {
   const [items, setItems] = useState(tracks);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(updatedAt);
@@ -85,7 +85,6 @@ export function MusicRankingsSection({
       setIsRefreshing(true);
       try {
         const response = await fetch(`/api/music-rankings?limit=${requestLimit}`, {
-          cache: "no-store",
           signal: controller.signal
         });
 
@@ -111,15 +110,22 @@ export function MusicRankingsSection({
       }
     }
 
-    void refresh();
-    const refreshTimer = window.setInterval(refresh, pollMs);
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    }
+
+    const refreshTimer = window.setInterval(refreshWhenVisible, pollMs);
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       active = false;
       controller.abort();
       window.clearInterval(refreshTimer);
       window.clearInterval(clockTimer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [pollMs, requestLimit]);
 

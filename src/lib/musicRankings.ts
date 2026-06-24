@@ -1,3 +1,5 @@
+import { getCachedData } from "@/lib/liveCache";
+
 type DeezerSearchResponse = {
   data?: DeezerTrack[];
 };
@@ -50,6 +52,8 @@ export type MusicRankingTrack = {
   platform: string;
   links: PlatformLink[];
 };
+
+export const MUSIC_RANKING_CACHE_TTL_MS = 5 * 60_000;
 
 function normalizeTitle(value: string): string {
   return value
@@ -138,4 +142,10 @@ export async function getMusicRankings(options: { limit?: number } = {}): Promis
       ]
     };
   });
+}
+
+export async function getCachedMusicRankings(options: { limit?: number } = {}) {
+  const limit = Math.min(options.limit ?? 8, 20);
+
+  return getCachedData(`music-rankings:${limit}`, MUSIC_RANKING_CACHE_TTL_MS, () => getMusicRankings({ limit }));
 }

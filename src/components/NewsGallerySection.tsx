@@ -69,7 +69,7 @@ export function NewsGallerySection({
   newsMode,
   updatedAt,
   limit,
-  pollMs = 30_000
+  pollMs = 60_000
 }: NewsGallerySectionProps) {
   const [items, setItems] = useState(news);
   const [ready, setReady] = useState(databaseReady);
@@ -94,7 +94,6 @@ export function NewsGallerySection({
       setIsRefreshing(true);
       try {
         const response = await fetch(`/api/news?hashtag=JISOO&limit=${requestLimit}`, {
-          cache: "no-store",
           signal: controller.signal
         });
 
@@ -122,15 +121,22 @@ export function NewsGallerySection({
       }
     }
 
-    void refresh();
-    const refreshTimer = window.setInterval(refresh, pollMs);
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    }
+
+    const refreshTimer = window.setInterval(refreshWhenVisible, pollMs);
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       active = false;
       controller.abort();
       window.clearInterval(refreshTimer);
       window.clearInterval(clockTimer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [pollMs, requestLimit]);
 

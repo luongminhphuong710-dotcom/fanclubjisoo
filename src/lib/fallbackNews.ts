@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import Parser from "rss-parser";
+import { getCachedData } from "@/lib/liveCache";
 import { matchKeywords, scoreArticleMatch } from "@/lib/news/filter";
 
 type RssItem = {
@@ -46,6 +47,7 @@ const { GoogleDecoder } = require("google-news-url-decoder") as {
 const googleDecoder = new GoogleDecoder();
 
 export const DEFAULT_HASHTAG = "JISOO";
+export const LIVE_NEWS_CACHE_TTL_MS = 60_000;
 
 const JISOO_FALLBACK_IMAGES = [
   "https://upload.wikimedia.org/wikipedia/commons/b/bd/20240226_Kim_Jisoo_%EA%B9%80%EC%A7%80%EC%88%98_03.jpg",
@@ -244,4 +246,13 @@ export async function getLiveHashtagNews(options: { hashtag?: string | null; lim
     .slice(0, limit);
 
   return Promise.all(articles.map((article, index) => enrichArticleImage(article, index)));
+}
+
+export async function getCachedLiveHashtagNews(options: { hashtag?: string | null; limit?: number } = {}) {
+  const hashtag = normalizeHashtag(options.hashtag);
+  const limit = Math.min(options.limit ?? 10, 30);
+
+  return getCachedData(`news:${hashtag}:${limit}`, LIVE_NEWS_CACHE_TTL_MS, () =>
+    getLiveHashtagNews({ hashtag, limit })
+  );
 }
