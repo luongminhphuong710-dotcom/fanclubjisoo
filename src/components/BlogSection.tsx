@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { BlogPostData } from "@/lib/blog";
 
 type BlogSectionProps = {
@@ -25,12 +24,9 @@ export function BlogSection({ posts }: BlogSectionProps) {
           <p className="eyebrowDark">Blog</p>
           <h2>Blog JISOO Vietnam Fanclub</h2>
         </div>
-        <Link className="adminLink" href="/admin">
-          Admin đăng bài
-        </Link>
       </div>
       <p className="sectionHint">
-        Các bài viết do admin Mia cập nhật về JISOO, âm nhạc, phim ảnh, hình ảnh và hoạt động fanclub.
+        Các bài viết được cập nhật về JISOO, âm nhạc, phim ảnh, hình ảnh và hoạt động fanclub.
       </p>
 
       <div className="blogGrid">

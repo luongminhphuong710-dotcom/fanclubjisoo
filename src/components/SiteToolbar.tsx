@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/register", label: "Đăng ký" },
   { href: "/rankings", label: "Bảng xếp hạng" },
   { href: "/news", label: "Tin mới" },
   { href: "/blog", label: "Blog" },
@@ -25,6 +24,14 @@ export function SiteToolbar() {
           {link.label}
         </Link>
       ))}
+      <div className="toolbarActions" aria-label="Tài khoản thành viên">
+        <Link className={pathname === "/login" ? "active" : undefined} href="/login">
+          Đăng nhập
+        </Link>
+        <Link className={pathname === "/register" ? "active" : undefined} href="/register">
+          Đăng ký
+        </Link>
+      </div>
     </nav>
   );
 }

@@ -19,7 +19,6 @@ export default async function HomePage() {
     <main className="shell">
       <SiteToolbar />
       <HeroBanner />
-      <RegisterSection />
 
       <section className="singleColumn">
         <MusicRankingsSection tracks={musicRankings} updatedAt={rankingsUpdatedAt} />
@@ -29,6 +28,7 @@ export default async function HomePage() {
       <BlogSection posts={blogPosts} />
       <MovieGallerySection />
       <AboutSection />
+      <RegisterSection />
     </main>
   );
 }
