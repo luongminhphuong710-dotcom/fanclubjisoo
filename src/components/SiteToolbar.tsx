@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const links = [
   { href: "/rankings", label: "Bảng xếp hạng" },
   { href: "/news", label: "Tin mới" },
-  { href: "/fanclub", label: "Fan club" },
+  { href: "/blog", label: "Blog" },
   { href: "/movie", label: "Movie" },
   { href: "/about", label: "Giới thiệu" }
 ];

@@ -204,6 +204,24 @@ model NewsArticle {
   @@index([idolId, publishedAt])
 }
 
+model BlogPost {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String?
+  body        String
+  imageUrl    String?
+  tags        String[]  @default([])
+  published   Boolean   @default(true)
+  authorName  String    @default("Mia")
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([published, publishedAt])
+  @@index([createdAt])
+}
+
 model User {
   id           String          @id @default(cuid())
   email        String          @unique

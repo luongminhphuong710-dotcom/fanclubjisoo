@@ -9,8 +9,8 @@ export default function AboutPage() {
       <HeroBanner
         compact
         eyebrow="Giới thiệu"
-        title="Giới thiệu JISOO Fanclub"
-        text="Tổng quan về mục tiêu, nội dung và định hướng phát triển cộng đồng fan JISOO."
+        title="Giới thiệu JISOO Vietnam Fanclub"
+        text="Thông tin liên hệ, bản quyền và giới thiệu ngắn về website fanclub."
       />
       <AboutSection />
     </main>

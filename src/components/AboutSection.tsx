@@ -3,24 +3,24 @@ export function AboutSection() {
     <section className="contentSection" id="about">
       <div className="sectionIntro">
         <p className="eyebrowDark">Giới thiệu chung</p>
-        <h2>Về JISOO Fanclub</h2>
+        <h2>JISOO Vietnam Fanclub</h2>
         <p>
-          JISOO Fanclub là trang cộng đồng dành cho người hâm mộ ca sĩ JISOO, tập trung vào tin tức, bảng xếp hạng âm
-          nhạc, thư viện nội dung và hoạt động fan.
+          Website cộng đồng dành cho người yêu mến JISOO, cập nhật tin mới, bảng xếp hạng âm nhạc, blog, phim ảnh và
+          các nội dung fanclub.
         </p>
       </div>
-      <div className="aboutGrid">
+      <div className="aboutGrid compactInfoGrid">
         <div>
-          <strong>Cập nhật tự động</strong>
-          <p>Lấy tin #JISOO và bảng xếp hạng nhạc từ các nguồn public/API.</p>
+          <strong>Hotline</strong>
+          <p>0385206519</p>
         </div>
         <div>
-          <strong>Cộng đồng fan</strong>
-          <p>Mở rộng thành diễn đàn, bình luận, like và phân quyền fan/mod/admin.</p>
+          <strong>Bản quyền</strong>
+          <p>Copyright 2026 bởi Mia</p>
         </div>
         <div>
-          <strong>Media & Movie</strong>
-          <p>Sẵn sàng kết nối album ảnh, video, trailer và các chuyên mục điện ảnh.</p>
+          <strong>Quản trị nội dung</strong>
+          <p>Admin Mia cập nhật blog và thông tin chính thức của website.</p>
         </div>
       </div>
     </section>

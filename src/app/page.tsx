@@ -1,16 +1,18 @@
 import { AboutSection } from "@/components/AboutSection";
-import { FanClubSection } from "@/components/FanClubSection";
+import { BlogSection } from "@/components/BlogSection";
 import { HeroBanner } from "@/components/HeroBanner";
 import { MovieGallerySection } from "@/components/MovieGallerySection";
 import { MusicRankingsSection } from "@/components/MusicRankingsSection";
 import { NewsGallerySection } from "@/components/NewsGallerySection";
 import { SiteToolbar } from "@/components/SiteToolbar";
+import { listBlogPosts } from "@/lib/blog";
 import { getHomeData } from "@/lib/pageData";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const { musicRankings, rankingsUpdatedAt, news, databaseReady, newsMode, updatedAt } = await getHomeData();
+  const [{ musicRankings, rankingsUpdatedAt, news, databaseReady, newsMode, updatedAt }, blogPosts] =
+    await Promise.all([getHomeData(), listBlogPosts({ limit: 3 })]);
 
   return (
     <main className="shell">
@@ -22,7 +24,7 @@ export default async function HomePage() {
         <NewsGallerySection databaseReady={databaseReady} news={news} newsMode={newsMode} updatedAt={updatedAt} />
       </section>
 
-      <FanClubSection />
+      <BlogSection posts={blogPosts} />
       <MovieGallerySection />
       <AboutSection />
     </main>
