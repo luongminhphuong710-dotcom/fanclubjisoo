@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  FAN
+  MODERATOR
+  ADMIN
+}
+
+enum Provider {
+  SPOTIFY
+  YOUTUBE
+  BILLBOARD
+  RSS
+  X
+  INSTAGRAM
+  MANUAL
+}
+
+enum SourceType {
+  RSS
+  X
+  INSTAGRAM
+  MANUAL
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  ALBUM_ART
+  DOCUMENT
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  REJECTED
+}
+
+model Idol {
+  id               String          @id @default(cuid())
+  slug             String          @unique
+  name             String
+  bio              String?
+  avatarUrl        String?
+  heroImageUrl     String?
+  keywords         String[]        @default([])
+  spotifyArtistId  String?
+  youtubeChannelId String?
+  active           Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  tracks           Track[]
+  chartSnapshots   ChartSnapshot[]
+  mediaAlbums      MediaAlbum[]
+  mediaAssets      MediaAsset[]
+  newsArticles     NewsArticle[]
+
+  @@index([active])
+}
+
+model Track {
+  id             String       @id @default(cuid())
+  idolId         String
+  title          String
+  artistName     String
+  albumName      String?
+  coverUrl       String?
+  releaseDate    DateTime?
+  spotifyId      String?      @unique
+  youtubeVideoId String?      @unique
+  providerUrl    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  idol           Idol         @relation(fields: [idolId], references: [id], onDelete: Cascade)
+  chartEntries   ChartEntry[]
+
+  @@index([idolId, title])
+  @@index([releaseDate])
+}
+
+model ChartSnapshot {
+  id         String       @id @default(cuid())
+  provider   Provider
+  idolId     String?
+  market     String?
+  sourceUrl  String?
+  capturedAt DateTime     @default(now())
+  createdAt  DateTime     @default(now())
+  idol       Idol?        @relation(fields: [idolId], references: [id], onDelete: SetNull)
+  entries    ChartEntry[]
+
+  @@index([provider, capturedAt])
+  @@index([idolId, capturedAt])
+}
+
+model ChartEntry {
+  id             String        @id @default(cuid())
+  snapshotId     String
+  trackId        String?
+  provider       Provider
+  providerItemId String
+  title          String
+  artistName     String
+  rank           Int?
+  previousRank   Int?
+  metricName     String?
+  metricValue    BigInt?
+  metricText     String?
+  raw            Json?
+  snapshot       ChartSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  track          Track?        @relation(fields: [trackId], references: [id], onDelete: SetNull)
+
+  @@unique([snapshotId, providerItemId])
+  @@index([provider, rank])
+  @@index([trackId])
+}
+
+model MediaAlbum {
+  id          String       @id @default(cuid())
+  idolId      String
+  slug        String
+  title       String
+  concept     String?
+  description String?
+  coverUrl    String?
+  releasedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  idol        Idol         @relation(fields: [idolId], references: [id], onDelete: Cascade)
+  assets      MediaAsset[]
+
+  @@unique([idolId, slug])
+  @@index([releasedAt])
+}
+
+model MediaAsset {
+  id              String      @id @default(cuid())
+  idolId          String
+  albumId         String?
+  type            MediaType
+  title           String?
+  storageProvider String
+  storageKey      String
+  publicUrl       String
+  width           Int?
+  height          Int?
+  durationSec     Int?
+  blurHash        String?
+  takenAt         DateTime?
+  sortOrder       Int         @default(0)
+  metadata        Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  idol            Idol        @relation(fields: [idolId], references: [id], onDelete: Cascade)
+  album           MediaAlbum? @relation(fields: [albumId], references: [id], onDelete: SetNull)
+
+  @@index([idolId, takenAt])
+  @@index([albumId, sortOrder])
+}
+
+model NewsSource {
+  id            String        @id @default(cuid())
+  type          SourceType
+  name          String
+  endpoint      String
+  keywords      String[]      @default([])
+  enabled       Boolean       @default(true)
+  lastFetchedAt DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  articles      NewsArticle[]
+
+  @@index([type, enabled])
+}
+
+model NewsArticle {
+  id              String        @id @default(cuid())
+  sourceId        String?
+  idolId          String?
+  url             String        @unique
+  title           String
+  excerpt         String?
+  imageUrl        String?
+  author          String?
+  publishedAt     DateTime?
+  status          ArticleStatus @default(DRAFT)
+  matchedKeywords String[]      @default([])
+  score           Int           @default(0)
+  raw             Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  source          NewsSource?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  idol            Idol?         @relation(fields: [idolId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([idolId, publishedAt])
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  passwordHash String?
+  displayName  String
+  avatarUrl    String?
+  role         UserRole        @default(FAN)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  posts        CommunityPost[]
+  comments     Comment[]
+  postLikes    PostLike[]
+  commentLikes CommentLike[]
+
+  @@index([role])
+}
+
+model CommunityPost {
+  id        String     @id @default(cuid())
+  authorId  String
+  slug      String?    @unique
+  title     String
+  body      String
+  category  String?
+  tags      String[]   @default([])
+  pinned    Boolean    @default(false)
+  locked    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  likes     PostLike[]
+
+  @@index([category, createdAt])
+  @@index([pinned, createdAt])
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  body      String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentThread")
+  likes     CommentLike[]
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+}
+
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime      @default(now())
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+}
+
+model CommentLike {
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
+  @@index([userId])
+}
