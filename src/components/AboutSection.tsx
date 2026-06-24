@@ -18,10 +18,6 @@ export function AboutSection() {
           <strong>Bản quyền</strong>
           <p>Copyright 2026 bởi Mia</p>
         </div>
-        <div>
-          <strong>Quản trị nội dung</strong>
-          <p>Admin Mia cập nhật blog và thông tin chính thức của website.</p>
-        </div>
       </div>
     </section>
   );
