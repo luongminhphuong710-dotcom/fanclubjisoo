@@ -1,12 +1,19 @@
 import { BlogSection } from "@/components/BlogSection";
 import { HeroBanner } from "@/components/HeroBanner";
 import { SiteToolbar } from "@/components/SiteToolbar";
-import { listBlogPosts } from "@/lib/blog";
+import { listBlogPosts, listBlogTags } from "@/lib/blog";
 
 export const dynamic = "force-dynamic";
 
-export default async function BlogPage() {
-  const posts = await listBlogPosts({ limit: 20 });
+type BlogPageProps = {
+  searchParams: Promise<{
+    tag?: string;
+  }>;
+};
+
+export default async function BlogPage({ searchParams }: BlogPageProps) {
+  const { tag } = await searchParams;
+  const [posts, tags] = await Promise.all([listBlogPosts({ limit: 100, tag }), listBlogTags()]);
 
   return (
     <main className="shell">
@@ -15,9 +22,9 @@ export default async function BlogPage() {
         compact
         eyebrow="Blog"
         title="Blog JISOO Vietnam Fanclub"
-        text="Nơi admin Mia đăng bài, cập nhật câu chuyện, hình ảnh, âm nhạc và hoạt động mới về JISOO."
+        text="Đọc các bài viết mới về JISOO, lọc theo hashtag và mở từng bài để xem đầy đủ nội dung."
       />
-      <BlogSection posts={posts} />
+      <BlogSection posts={posts} selectedTag={tag} showFilters tags={tags} />
     </main>
   );
 }

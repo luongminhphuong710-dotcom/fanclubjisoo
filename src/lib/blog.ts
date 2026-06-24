@@ -28,6 +28,12 @@ export type BlogPostInput = {
   published?: boolean;
 };
 
+export type ListBlogPostsOptions = {
+  includeDrafts?: boolean;
+  limit?: number;
+  tag?: string | null;
+};
+
 const seedPosts: BlogPostData[] = [
   {
     id: "seed-jisoo-fanclub-note",
@@ -73,8 +79,22 @@ function slugify(value: string): string {
   return slug || `bai-viet-${Date.now()}`;
 }
 
+function normalizeTag(value: string | null | undefined): string {
+  return (value ?? "").replace(/^#/, "").trim().toLowerCase();
+}
+
 function normalizeTags(tags: string[] | undefined): string[] {
-  return [...new Set((tags ?? []).map((tag) => tag.trim()).filter(Boolean))].slice(0, 8);
+  return [...new Set((tags ?? []).map((tag) => tag.trim().replace(/^#/, "")).filter(Boolean))].slice(0, 8);
+}
+
+function filterByTag(posts: BlogPostData[], tag: string | null | undefined): BlogPostData[] {
+  const normalizedTag = normalizeTag(tag);
+
+  if (!normalizedTag) {
+    return posts;
+  }
+
+  return posts.filter((post) => post.tags.some((item) => normalizeTag(item) === normalizedTag));
 }
 
 function serializeDbPost(post: {
@@ -123,22 +143,66 @@ function sortPosts(posts: BlogPostData[]) {
   });
 }
 
-export async function listBlogPosts(options: { includeDrafts?: boolean; limit?: number } = {}) {
+export async function listBlogPosts(options: ListBlogPostsOptions = {}) {
   const includeDrafts = options.includeDrafts ?? false;
   const limit = options.limit ?? 20;
+  const take = Math.max(limit, 100);
 
   try {
     const posts = await db.blogPost.findMany({
       where: includeDrafts ? undefined : { published: true },
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      take: limit
+      take
     });
 
-    return posts.map(serializeDbPost);
+    return filterByTag(posts.map(serializeDbPost), options.tag).slice(0, limit);
   } catch {
     const posts = await readFallbackPosts();
-    return sortPosts(includeDrafts ? posts : posts.filter((post) => post.published)).slice(0, limit);
+    return filterByTag(sortPosts(includeDrafts ? posts : posts.filter((post) => post.published)), options.tag).slice(
+      0,
+      limit
+    );
   }
+}
+
+export async function getBlogPostBySlug(slug: string, options: { includeDrafts?: boolean } = {}) {
+  try {
+    const post = await db.blogPost.findUnique({ where: { slug } });
+
+    if (!post || (!options.includeDrafts && !post.published)) {
+      return null;
+    }
+
+    return serializeDbPost(post);
+  } catch {
+    const posts = await readFallbackPosts();
+    return posts.find((post) => post.slug === slug && (options.includeDrafts || post.published)) ?? null;
+  }
+}
+
+export async function listBlogTags() {
+  const posts = await listBlogPosts({ limit: 100 });
+  const tagMap = new Map<string, { label: string; count: number }>();
+
+  for (const post of posts) {
+    for (const tag of post.tags) {
+      const key = normalizeTag(tag);
+      const current = tagMap.get(key);
+
+      tagMap.set(key, {
+        label: current?.label ?? tag.replace(/^#/, ""),
+        count: (current?.count ?? 0) + 1
+      });
+    }
+  }
+
+  return [...tagMap.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+export async function listHotBlogPosts(options: { excludeSlug?: string; limit?: number } = {}) {
+  const posts = await listBlogPosts({ limit: 100 });
+
+  return posts.filter((post) => post.slug !== options.excludeSlug).slice(0, options.limit ?? 5);
 }
 
 export async function createBlogPost(input: BlogPostInput) {
